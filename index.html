@@ -85,6 +85,11 @@ canvas#hist{width:100%;height:56px;display:block;background:var(--panel2);border
 #drop .box p{color:var(--muted);margin:6px 0 16px}
 #stage.dragging #drop{display:flex !important}
 #stage.dragging #drop .box{border-color:var(--accent)}
+#ctx{position:fixed;z-index:20;min-width:240px;background:#24252d;border:1px solid var(--line);border-radius:9px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.55)}
+#ctx .ttl{padding:5px 10px 3px;color:#ffd36c;font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.06em}
+#ctx button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:7px 10px;border-radius:5px}
+#ctx button:hover{background:#30323d}
+#ctx hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
 #toast{position:absolute;left:50%;bottom:44px;transform:translateX(-50%) translateY(10px);opacity:0;transition:.25s;
   background:#2b2d38;border:1px solid var(--line);padding:8px 14px;border-radius:8px;z-index:5;pointer-events:none;max-width:80%;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -110,10 +115,11 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
     <h2>Génération automatique</h2>
     <div class="row"><span class="lbl">Réglages de</span>
       <select id="zoneSel"><option value="">Image entière</option></select>
+      <button id="btnZoneInv" title="Inverser la zone : elle couvre tout sauf ce qu'elle couvrait" disabled>Inverser</button>
       <button id="btnZoneDel" class="danger" title="Supprimer la zone (Suppr)" disabled>✕</button>
     </div>
     <div class="row" style="justify-content:space-between">
-      <button id="btnZoneNew" title="Z">+ Nouvelle zone</button>
+      <button id="btnZoneNew" title="Lasso en mode Zone (Z)">+ Nouvelle zone</button>
       <label class="check" style="margin:0"><input type="checkbox" id="showZones" checked> Contours</label>
     </div>
     <p id="zoneHint" class="hint"></p>
@@ -190,10 +196,10 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
     <h2>Raccourcis</h2>
     <div class="keys">
       <kbd>B</kbd> pinceau · <kbd>L</kbd> lasso · <kbd>G</kbd> remplissage · <kbd>I</kbd> pipette<br>
-      Lasso / zone : <kbd>L</kbd> / <kbd>Z</kbd> à nouveau = libre ↔ polygonal · <kbd>Entrée</kbd> fermer · <kbd>⌫</kbd> retirer un point<br>
-      <kbd>W</kbd> baguette magique (<kbd>[</kbd> <kbd>]</kbd> = tolérance)<br>
-      <kbd>Z</kbd> zone (entourer = créer, clic = sélectionner) · <kbd>Suppr</kbd> supprimer la zone<br>
-      Zone / baguette : <kbd>Maj</kbd>+clic ajouter à la zone · <kbd>Alt</kbd>+clic retirer<br>
+      Lasso : <kbd>L</kbd> à nouveau = libre ↔ polygonal · <kbd>Entrée</kbd> fermer · <kbd>⌫</kbd> retirer un point<br>
+      <kbd>W</kbd> baguette magique (<kbd>[</kbd> <kbd>]</kbd> = tolérance) · <kbd>Z</kbd> lasso en mode Zone<br>
+      Mode Zone : <kbd>Maj</kbd>+clic ajouter · <kbd>Alt</kbd>+clic retirer · clic droit = menu (inverser…)<br>
+      <kbd>Suppr</kbd> supprimer la zone sélectionnée<br>
       <kbd>X</kbd> blanc ↔ noir · <kbd>E</kbd> auto (gomme) · <kbd>[</kbd> <kbd>]</kbd> taille<br>
       <kbd>1</kbd> map · <kbd>2</kbd> superposition · <kbd>3</kbd> original · <kbd>0</kbd> ajuster<br>
       Molette = zoom · <kbd>Espace</kbd>+glisser ou clic molette = déplacer<br>
@@ -208,8 +214,14 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
     <div id="optLeft">
       <span class="toolname" id="toolName"></span>
       <span class="opt" data-for="brush" title="Taille du pinceau ([ et ])">Taille <input type="range" id="size" min="1" max="400" value="40"><input type="number" class="num" data-num="size"> px</span>
-      <span class="opt" data-for="lasso zone">
-        <span class="seg lassoModes" title="Appuie de nouveau sur L (ou Z) pour alterner">
+      <span class="opt" data-for="lasso">
+        <span class="seg" id="lassoActions" title="Z : lasso en mode Zone">
+          <button data-la="zone" title="La forme devient une zone avec ses propres réglages">→ Zone</button>
+          <button data-la="paint" title="Peint la forme avec la couleur active">→ Peindre</button>
+        </span>
+      </span>
+      <span class="opt" data-for="lasso">
+        <span class="seg lassoModes" title="Appuie de nouveau sur L pour alterner">
           <button data-lm="free" title="Tracé libre à main levée">Libre</button>
           <button data-lm="poly" title="Clic par clic, segments droits">Polygonal</button>
         </span>
@@ -242,7 +254,6 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
       <button data-tool="lasso" title="Lasso : entoure une zone pour la remplir (L)"><svg viewBox="0 0 24 24"><ellipse cx="13" cy="9" rx="8" ry="5.5"/><path d="M7 13.5c-1.5 1-2 2.3-1 3.5 1.2 1.4.2 3-1.5 4"/></svg>Lasso</button>
       <button data-tool="fill" title="Remplissage d'une zone connexe (G)"><svg viewBox="0 0 24 24"><path d="M5 11l7-7 7.5 7.5-7 7a2 2 0 0 1-2.8 0L5 13.8a2 2 0 0 1 0-2.8z"/><path d="M4.5 12h15"/><path d="M21 16s1.5 2 1.5 3a1.5 1.5 0 0 1-3 0c0-1 1.5-3 1.5-3z"/></svg>Remplir</button>
       <button data-tool="wand" title="Baguette magique : sélection par couleur de l'illustration (W)"><svg viewBox="0 0 24 24"><path d="M4 20 15 9"/><path d="M14 7.5l2.5 2.5"/><path d="M18 2v3M18 11v3M21.5 6.5h-3M14.5 6.5h-3M20.5 4l-1.5 1.5M20.5 9l-1.5-1.5"/></svg>Baguette</button>
-      <button data-tool="zone" title="Zone : entoure une partie de l'image pour lui donner ses propres réglages (Z)"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2" stroke-dasharray="3 2.5"/><path d="M9 12h6M12 9v6"/></svg>Zone</button>
     </div>
     <span class="sep"></span>
     <div id="paints">
@@ -264,6 +275,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
     <span id="stCov">–</span>
   </div>
   <div id="toast"></div>
+  <div id="ctx" class="hidden"></div>
 </main>
 </div>
 
@@ -286,7 +298,7 @@ let undoStack = [], redoStack = [];
 const UNDO_MAX = 40;
 
 const view = { mode: 'map', zoom: 1, panX: 0, panY: 0, opacity: 0.6, tint: '#3ad0ff', showEdits: false, trim: true };
-const tool = { name: 'brush', paint: 2, size: 40, prev: 'brush', tol: 32, wandMode: 'zone', lassoMode: 'free' };
+const tool = { name: 'brush', paint: 2, size: 40, prev: 'brush', tol: 32, wandMode: 'zone', lassoMode: 'free', lassoAction: 'zone' };
 const pointer = { x: 0, y: 0, inside: false, mode: null, val: 2, lx: 0, ly: 0, lasso: [], sx: 0, sy: 0, px: 0, py: 0 };
 let spaceDown = false;
 
@@ -653,6 +665,52 @@ function combineZone(z, r, mode) {
 }
 function createZone(pts, mod) { zoneFromMask(rasterPoly(pts), mod); }
 
+// Inverser la zone : elle couvre tout ce qu'elle ne couvrait pas
+function invertZone(z) {
+  if (!z) return;
+  const m = new Uint8Array(N).fill(1), bw = z.x1 - z.x0;
+  for (let y = z.y0; y < z.y1; y++) for (let x = z.x0; x < z.x1; x++) if (z.mask[(y - z.y0) * bw + x - z.x0]) m[y * W + x] = 0;
+  if (!m.some(v => v)) { toast('La zone couvre déjà toute l\'image : rien à inverser'); return; }
+  Object.assign(z, { x0: 0, y0: 0, x1: W, y1: H, mask: m, path: null, tint: null, dirty: true, result: null });
+  scheduleGenerate(); requestRender();
+  toast(`${z.name} inversée`);
+}
+// Inverser blanc ↔ noir (case « Inverser » des réglages) d'une zone ou de l'image entière
+function toggleInv(z) {
+  if (z) { z.params = { ...z.params, inv: !z.params.inv }; z.dirty = true; }
+  else { globalParams = { ...globalParams, inv: !globalParams.inv }; globalCache.dirty = true; }
+  if (activeZone === z) setParams(z ? z.params : globalParams);
+  scheduleGenerate();
+}
+
+/* Menu contextuel (clic droit quand l'outil crée des zones) */
+function openCtxMenu(cx, cy, ix, iy) {
+  const z = zoneAt(ix, iy) || activeZone;
+  if (z && z !== activeZone) selectZone(z);
+  const items = z
+    ? [['ttl', z.name], ['Inverser la zone', () => invertZone(z)], ['Inverser blanc ↔ noir dans la zone', () => toggleInv(z)],
+       ['hr'], ['Supprimer la zone', () => deleteZone(z), 'danger']]
+    : [['ttl', 'Image entière'], ['Inverser blanc ↔ noir', () => toggleInv(null)]];
+  const m = $('#ctx');
+  m.innerHTML = '';
+  for (const [label, fn, cls] of items) {
+    if (label === 'ttl') { const d = document.createElement('div'); d.className = 'ttl'; d.textContent = fn; m.appendChild(d); }
+    else if (label === 'hr') m.appendChild(document.createElement('hr'));
+    else {
+      const b = document.createElement('button');
+      b.textContent = label; if (cls) b.className = cls;
+      b.addEventListener('click', () => { closeCtxMenu(); fn(); });
+      m.appendChild(b);
+    }
+  }
+  m.classList.remove('hidden');
+  m.style.left = Math.min(cx, innerWidth - m.offsetWidth - 8) + 'px';
+  m.style.top = Math.min(cy, innerHeight - m.offsetHeight - 8) + 'px';
+}
+function closeCtxMenu() { const m = document.getElementById('ctx'); if (m) m.classList.add('hidden'); }
+window.addEventListener('pointerdown', e => { if (!e.target.closest('#ctx')) closeCtxMenu(); }, true);
+window.addEventListener('resize', closeCtxMenu);
+
 // Flash visuel temporaire sur les pixels modifiés
 let flash = null;
 function showFlash(r) {
@@ -694,7 +752,7 @@ function updateZoneUI() {
   const sel = $('#zoneSel');
   sel.innerHTML = '<option value="">Image entière</option>' + zones.map(z => `<option value="${z.id}">${z.name}</option>`).join('');
   sel.value = activeZone ? activeZone.id : '';
-  $('#btnZoneDel').disabled = !activeZone;
+  $('#btnZoneDel').disabled = $('#btnZoneInv').disabled = !activeZone;
   $('#zoneHint').innerHTML = activeZone
     ? `Tu modifies <b>${activeZone.name}</b> : ces réglages remplacent ceux de l'image entière à l'intérieur de la zone.`
     : (zones.length ? 'Réglages de l\'image entière (hors zones).' : '');
@@ -764,8 +822,9 @@ new ResizeObserver(resize).observe($('#stage'));
 
 function fit() {
   if (!N) return;
+  resize(); // dimensions à jour même si le ResizeObserver n'a pas encore tourné
   const pad = 30, top = 64, left = 86; // place pour la barre d'options et la palette
-  view.zoom = Math.min((cw - left - pad) / W, (ch - top - pad - 30) / H);
+  view.zoom = Math.max(0.02, Math.min((cw - left - pad) / W, (ch - top - pad - 30) / H));
   view.panX = left + (cw - left - pad - W * view.zoom) / 2;
   view.panY = top + (ch - top - 30 - H * view.zoom) / 2;
   updateZoomUI(); requestRender();
@@ -937,6 +996,7 @@ function applyLasso(pts, val) {
   const bw = r.x1 - r.x0;
   for (let y = r.y0; y < r.y1; y++) for (let x = r.x0; x < r.x1; x++) if (r.mask[(y - r.y0) * bw + x - r.x0]) over[y * W + x] = val;
   updateDisplay(r.x0, r.y0, r.x1, r.y1); updateStats();
+  showFlash(r);
 }
 
 function floodFill(x, y, val) {
@@ -1054,15 +1114,17 @@ cv.addEventListener('pointerdown', e => {
   if (tool.name === 'brush') {
     pushUndo(); pointer.mode = 'brush'; pointer.lx = ix; pointer.ly = iy;
     stampLine(ix, iy, ix, iy);
-  } else if ((tool.name === 'lasso' || tool.name === 'zone') && tool.lassoMode === 'poly') {
+  } else if (e.button === 2 && !poly && zoneAction()) {
+    openCtxMenu(e.clientX, e.clientY, ix, iy);   // clic droit en mode zone = menu contextuel
+  } else if (tool.name === 'lasso' && tool.lassoMode === 'poly') {
     const now = performance.now();
     const dbl = poly && now - poly.lastT < 400 && Math.hypot(sx - poly.lastSX, sy - poly.lastSY) < 6;
-    if (!poly) poly = { tool: tool.name, pts: [[ix, iy]], val, mod: pointer.mod };
+    if (!poly) poly = { tool: lassoKind(), pts: [[ix, iy]], val, mod: pointer.mod };
     else if (e.button === 2 || dbl || nearFirst()) { finishPoly(); requestRender(); return; }
     else poly.pts.push([ix, iy]);
     poly.lastT = now; poly.lastSX = sx; poly.lastSY = sy;
-  } else if (tool.name === 'lasso' || tool.name === 'zone') {
-    pointer.mode = tool.name; pointer.lasso = [[ix, iy]];
+  } else if (tool.name === 'lasso') {
+    pointer.mode = lassoKind(); pointer.lasso = [[ix, iy]];
   } else if (tool.name === 'fill') {
     floodFill(Math.floor(ix), Math.floor(iy), val);
   } else if (tool.name === 'wand') {
@@ -1155,7 +1217,8 @@ function setTool(name) {
   tool.name = name;
   $$('#tools button').forEach(b => b.classList.toggle('on', b.dataset.tool === name));
   $('#btnPick').classList.toggle('primary', name === 'picker');
-  if (poly && poly.tool !== name) cancelPoly();
+  if (poly && name !== 'lasso') cancelPoly();
+  closeCtxMenu();
   $$('#optLeft [data-for]').forEach(el => el.classList.toggle('hidden', !el.dataset.for.split(' ').includes(name)));
   updateToolInfo();
   updatePaintsUI();
@@ -1163,21 +1226,36 @@ function setTool(name) {
 }
 const TOOL_INFO = {
   brush: ['Pinceau', 'Clic droit : couleur opposée'],
-  lasso: ['Lasso', 'Entoure une zone pour la remplir avec la couleur active · clic droit : couleur opposée · Échap : annuler'],
+  lasso: ['Lasso', ''],
   fill: ['Remplir', 'Remplit la zone de la map reliée au point cliqué · clic droit : couleur opposée'],
   wand: ['Baguette', ''],
-  zone: ['Zone', 'Entourer : nouvelle zone · clic : sélectionner une zone · Maj : ajouter · Alt : retirer'],
   picker: ['Pipette', 'Clique sur une couleur de l\'illustration pour la prendre comme couleur cible'],
 };
+// Lasso → 'zone' (crée une zone) ou 'lasso' (peint)
+const lassoKind = () => tool.lassoAction === 'zone' ? 'zone' : 'lasso';
+// L'outil actif crée-t-il des zones ? (couleurs inutiles, clic droit = menu)
+const zoneAction = () => (tool.name === 'lasso' && tool.lassoAction === 'zone') || (tool.name === 'wand' && tool.wandMode === 'zone');
 function updateToolInfo() {
   const [label, hint] = TOOL_INFO[tool.name] || ['', ''];
   $('#toolName').textContent = label;
-  const polyHint = 'Clic : ajouter un point · double-clic, Entrée ou clic sur le 1er point : fermer · Retour arrière : retirer un point · Échap : annuler';
-  $('#toolHint').textContent = (tool.name === 'lasso' || tool.name === 'zone') && tool.lassoMode === 'poly'
-    ? polyHint + (tool.name === 'zone' ? ' · Maj : ajouter · Alt : retirer' : '')
-    : tool.name !== 'wand' ? hint
-    : tool.wandMode === 'zone' ? 'Clic : nouvelle zone · Maj+clic : ajouter · Alt+clic : retirer'
-    : 'Clic : peint la sélection · clic droit : couleur opposée';
+  const zoneTail = ' · Maj : ajouter à la zone · Alt : retirer · clic droit : menu (inverser…)';
+  let h = hint;
+  if (tool.name === 'lasso') {
+    const z = tool.lassoAction === 'zone';
+    h = tool.lassoMode === 'poly'
+      ? 'Clic : point · double-clic / Entrée / 1er point : fermer · ⌫ : retirer un point · Échap : annuler'
+      : z ? 'Entourer : nouvelle zone · clic : sélectionner une zone' : 'Entoure une zone pour la peindre · clic droit : couleur opposée · Échap : annuler';
+    h += z ? zoneTail : '';
+  } else if (tool.name === 'wand') {
+    h = tool.wandMode === 'zone' ? 'Clic : nouvelle zone' + zoneTail : 'Clic : peint la sélection · clic droit : couleur opposée';
+  }
+  $('#toolHint').textContent = h;
+}
+function setLassoAction(a) {
+  tool.lassoAction = a;
+  cancelPoly();
+  $$('#lassoActions button').forEach(b => b.classList.toggle('on', b.dataset.la === a));
+  updatePaintsUI(); updateToolInfo();
 }
 function setPaint(v) {
   tool.paint = v;
@@ -1198,10 +1276,10 @@ function setView(m) {
 
 // Champs numériques éditables liés aux curseurs (data-num = id du curseur)
 function syncNums() {
-  $('input.num').forEach(n => { if (document.activeElement !== n) n.value = $('#' + n.dataset.num).value; });
+  $$('input.num').forEach(n => { if (document.activeElement !== n) n.value = $('#' + n.dataset.num).value; });
 }
 function setupNums() {
-  $('input.num').forEach(n => {
+  $$('input.num').forEach(n => {
     const r = $('#' + n.dataset.num);
     n.min = r.min; n.max = r.max; n.step = r.step || 1; n.value = r.value;
     const commit = () => {
@@ -1235,7 +1313,8 @@ $('#hi').addEventListener('input', () => { if (+$('#hi').value < +$('#lo').value
 $('#mode').addEventListener('change', e => { applyModeDefaults(); onParamsChanged(); e.target.blur(); });
 $('#btnResetParams').addEventListener('click', () => { setParams(DEFAULTS); onParamsChanged(); });
 $('#zoneSel').addEventListener('change', e => { selectZone(zones.find(z => z.id === +e.target.value) || null); e.target.blur(); });
-$('#btnZoneNew').addEventListener('click', () => { if (!N) return; setTool('zone'); toast('Entoure la zone à régler séparément'); });
+$('#btnZoneNew').addEventListener('click', () => { if (!N) return; setTool('lasso'); setLassoAction('zone'); toast('Entoure la zone à régler séparément'); });
+$('#btnZoneInv').addEventListener('click', () => invertZone(activeZone));
 $('#btnZoneDel').addEventListener('click', () => deleteZone(activeZone));
 $('#showZones').addEventListener('change', () => { showZones = $('#showZones').checked; requestRender(); });
 $('#btnPick').addEventListener('click', () => { if (!N) return; setTool(tool.name === 'picker' ? tool.prev : 'picker'); if (tool.name === 'picker') toast('Clique sur une couleur de l\'image'); });
@@ -1260,7 +1339,7 @@ function setWandMode(m) {
   updatePaintsUI(); updateToolInfo();
 }
 // Les couleurs ne servent à rien quand la baguette crée des zones : on les grise
-function updatePaintsUI() { $('#paints').style.opacity = (tool.name === 'wand' && tool.wandMode === 'zone') || tool.name === 'zone' ? .35 : 1; }
+function updatePaintsUI() { $('#paints').style.opacity = zoneAction() ? .35 : 1; }
 $$('#wandModes button').forEach(b => b.addEventListener('click', () => setWandMode(b.dataset.wm)));
 $('#btnUndo').addEventListener('click', undo);
 $('#btnRedo').addEventListener('click', redo);
@@ -1286,7 +1365,7 @@ window.addEventListener('paste', e => {
 });
 
 window.addEventListener('keydown', e => {
-  if (e.target.matches('input[type=number],input[type=text],textarea,select')) return;
+  if (e.target instanceof Element && e.target.matches('input[type=number],input[type=text],textarea,select')) return;
   const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
   if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && k === 'y') { e.preventDefault(); redo(); return; }
@@ -1298,7 +1377,7 @@ window.addEventListener('keydown', e => {
     case 'b': setTool('brush'); break;
     case 'l': tool.name === 'lasso' ? setLassoMode(tool.lassoMode === 'free' ? 'poly' : 'free') : setTool('lasso'); break;
     case 'g': setTool('fill'); break;
-    case 'z': tool.name === 'zone' ? setLassoMode(tool.lassoMode === 'free' ? 'poly' : 'free') : setTool('zone'); break;
+    case 'z': setTool('lasso'); setLassoAction('zone'); break;
     case 'delete': if (activeZone) deleteZone(activeZone); break;
     case 'i': if (N) setTool('picker'); break;
     case 'x': setPaint(tool.paint === 2 ? 1 : 2); break;
@@ -1312,7 +1391,7 @@ window.addEventListener('keydown', e => {
     case '0': fit(); break;
     case 'r': $('#showEdits').checked = !$('#showEdits').checked; $('#showEdits').dispatchEvent(new Event('change')); break;
     case 't': $('#trim').checked = !$('#trim').checked; $('#trim').dispatchEvent(new Event('change')); break;
-    case 'escape': cancelPoly(); if (pointer.mode === 'lasso' || pointer.mode === 'zone') { pointer.mode = null; pointer.lasso = []; requestRender(); } break;
+    case 'escape': cancelPoly(); closeCtxMenu(); if (pointer.mode === 'lasso' || pointer.mode === 'zone') { pointer.mode = null; pointer.lasso = []; requestRender(); } break;
     case 'enter': if (poly) { e.preventDefault(); finishPoly(); } break;
     case 'backspace': if (poly) { e.preventDefault(); poly.pts.pop(); if (!poly.pts.length) poly = null; requestRender(); } break;
   }
@@ -1398,8 +1477,9 @@ $('#btnExport').addEventListener('click', exportPNG);
 
 /* ================= Init ================= */
 $$('.lassoModes button').forEach(b => b.addEventListener('click', () => setLassoMode(b.dataset.lm)));
+$$('#lassoActions button').forEach(b => b.addEventListener('click', () => setLassoAction(b.dataset.la)));
 setupNums();
-setWandMode('zone'); setLassoMode('free'); setTool('brush'); setPaint(2); setSize(40); setTol(32); setView('map');
+setWandMode('zone'); setLassoMode('free'); setLassoAction('zone'); setTool('brush'); setPaint(2); setSize(40); setTol(32); setView('map');
 refreshOutputs(); updateUndoUI(); updateExportUI();
 </script>
 </body>

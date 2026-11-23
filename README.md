@@ -12,8 +12,16 @@ Ou ouvre `index.html` dans un navigateur (Chrome, Edge, Firefox). Rien à instal
 
 1. **Charger une illustration** : bouton, glisser-déposer ou Ctrl+V.
 2. **Régler la génération auto** : source (luminosité, saturation, similarité à une couleur, alpha), seuils min/max, inversion, flou, lissage, épaissir/amincir, nettoyage des petites taches et trous.
-3. **Zones** : entoure une partie de l'image (`Z`) ou clique dessus à la baguette magique (`W`) pour lui donner ses propres réglages. Maj+clic ajoute à la zone, Alt+clic retire.
-4. **Retoucher** : pinceau (`B`), lasso libre ou polygonal (`L`), remplissage (`G`), baguette magique (`W`) en blanc, noir ou *Auto* (gomme qui revient au calcul). Les retouches sont conservées quand on change les réglages.
+3. **Zones** : au lasso (`L`, libre ou polygonal) ou à la baguette magique (`W`) en mode *→ Zone*, une partie de l'image reçoit ses propres réglages. Maj+clic ajoute à la zone, Alt+clic retire, clic droit = menu (inverser la zone, inverser blanc/noir, supprimer).
+4. **Retoucher** : pinceau (`B`), remplissage (`G`), lasso ou baguette en mode *→ Peindre*, en blanc, noir ou *Auto* (gomme qui revient au calcul). Les retouches sont conservées quand on change les réglages.
 5. **Exporter** en PNG noir et blanc pur : taille d'origine, 1630 × 2220 ou personnalisée (avec option pour exporter l'illustration à la même taille).
 
 Les raccourcis sont listés dans le panneau de gauche.
+
+## Tests
+
+```
+node tests/run.mjs
+```
+
+Ouvre l'app dans Edge ou Chrome sans fenêtre, joue des scénarios (pinceau, lasso, zones, baguette, champs numériques, export…) et échoue en cas de vérification ratée ou d'erreur JavaScript. À lancer avant chaque push. Autre navigateur Chromium : `BROWSER=/chemin/vers/chrome node tests/run.mjs`.

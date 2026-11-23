@@ -6,7 +6,9 @@ Format attendu par l'imprimeur : une image noir et blanc, **blanc = foil**, **no
 
 ## Utilisation
 
-Ouvre `index.html` dans un navigateur (Chrome, Edge, Firefox). Rien à installer, tout tourne en local.
+**En ligne : https://hugohumbert.github.io/foil-map-maker/**
+
+Ou ouvre `index.html` dans un navigateur (Chrome, Edge, Firefox). Rien à installer, tout tourne en local : les images ne quittent jamais ton ordinateur.
 
 1. **Charger une illustration** : bouton, glisser-déposer ou Ctrl+V.
 2. **Régler la génération auto** : source (luminosité, saturation, similarité à une couleur, alpha), seuils min/max, inversion, flou, lissage, épaissir/amincir, nettoyage des petites taches et trous.

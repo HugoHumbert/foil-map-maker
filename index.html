@@ -180,6 +180,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
       <kbd>B</kbd> pinceau · <kbd>L</kbd> lasso · <kbd>G</kbd> remplissage · <kbd>I</kbd> pipette<br>
       <kbd>W</kbd> baguette magique (<kbd>[</kbd> <kbd>]</kbd> = tolérance)<br>
       <kbd>Z</kbd> zone (entourer = créer, clic = sélectionner) · <kbd>Suppr</kbd> supprimer la zone<br>
+      Zone / baguette : <kbd>Maj</kbd>+clic ajouter à la zone · <kbd>Alt</kbd>+clic retirer<br>
       <kbd>X</kbd> blanc ↔ noir · <kbd>E</kbd> auto (gomme) · <kbd>[</kbd> <kbd>]</kbd> taille<br>
       <kbd>1</kbd> map · <kbd>2</kbd> superposition · <kbd>3</kbd> original · <kbd>0</kbd> ajuster<br>
       Molette = zoom · <kbd>Espace</kbd>+glisser ou clic molette = déplacer<br>
@@ -205,7 +206,12 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
       <button data-paint="0" title="Auto = gomme, revient au calcul automatique (E)"><span class="chip chip-auto"></span>Auto</button>
     </div>
     <span id="sizeWrap" title="Taille du pinceau ([ et ])">⌀ <input type="range" id="size" min="1" max="400" value="40"><span id="sizeOut"></span></span>
-    <span id="wandWrap" class="hidden" title="Tolérance de la baguette ([ et ])">Tolérance <input type="range" id="tol" min="0" max="160" value="32"><span id="tolOut"></span>
+    <span id="wandWrap" class="hidden">
+      <span class="seg" id="wandModes">
+        <button data-wm="zone" title="La sélection devient une zone avec ses propres réglages. Maj+clic = ajouter à la zone, Alt+clic = retirer">→ Zone</button>
+        <button data-wm="paint" title="Peint directement la sélection avec la couleur active">→ Peindre</button>
+      </span>
+      <span title="Tolérance de la baguette ([ et ])">Tolérance</span> <input type="range" id="tol" min="0" max="160" value="32"><span id="tolOut"></span>
       <label class="check" style="margin:0 0 0 6px" title="Seulement les pixels reliés au point cliqué"><input type="checkbox" id="wandContig" checked> Contiguë</label></span>
     <span class="sep"></span>
     <button id="btnUndo" title="Annuler (Ctrl+Z)">↶</button>
@@ -253,7 +259,7 @@ let undoStack = [], redoStack = [];
 const UNDO_MAX = 40;
 
 const view = { mode: 'map', zoom: 1, panX: 0, panY: 0, opacity: 0.6, tint: '#3ad0ff', showEdits: false, trim: true };
-const tool = { name: 'brush', paint: 2, size: 40, prev: 'brush', tol: 32 };
+const tool = { name: 'brush', paint: 2, size: 40, prev: 'brush', tol: 32, wandMode: 'zone' };
 const pointer = { x: 0, y: 0, inside: false, mode: null, val: 2, lx: 0, ly: 0, lasso: [], sx: 0, sy: 0, px: 0, py: 0 };
 let spaceDown = false;
 
@@ -555,15 +561,83 @@ function rasterPoly(pts) {
   return any ? { x0, y0, x1, y1, mask } : null;
 }
 
-function createZone(pts) {
-  const r = rasterPoly(pts);
+// Contour d'un masque sous forme de Path2D (coords image), segments fusionnés par lignes / colonnes
+function maskPath(mask, x0, y0, bw, bh) {
+  const p = new Path2D();
+  const inn = (x, y) => (x >= 0 && y >= 0 && x < bw && y < bh && mask[y * bw + x]) ? 1 : 0;
+  for (let y = 0; y <= bh; y++) {
+    let run = -1;
+    for (let x = 0; x <= bw; x++) {
+      const e = x < bw && inn(x, y) !== inn(x, y - 1);
+      if (e && run < 0) run = x;
+      else if (!e && run >= 0) { p.moveTo(x0 + run, y0 + y); p.lineTo(x0 + x, y0 + y); run = -1; }
+    }
+  }
+  for (let x = 0; x <= bw; x++) {
+    let run = -1;
+    for (let y = 0; y <= bh; y++) {
+      const e = y < bh && inn(x, y) !== inn(x - 1, y);
+      if (e && run < 0) run = y;
+      else if (!e && run >= 0) { p.moveTo(x0 + x, y0 + run); p.lineTo(x0 + x, y0 + y); run = -1; }
+    }
+  }
+  return p;
+}
+// Calque teinté d'un masque (canvas à la taille du rectangle englobant)
+function maskTint(mask, bw, bh, color) {
+  const c = document.createElement('canvas'); c.width = bw; c.height = bh;
+  const g = c.getContext('2d'), id = g.createImageData(bw, bh), b = new Uint32Array(id.data.buffer);
+  for (let i = 0; i < mask.length; i++) if (mask[i]) b[i] = color;
+  g.putImageData(id, 0, 0);
+  return c;
+}
+function ensureOverlay(z) {
+  if (!z.path) z.path = maskPath(z.mask, z.x0, z.y0, z.x1 - z.x0, z.y1 - z.y0);
+  if (!z.tint) z.tint = maskTint(z.mask, z.x1 - z.x0, z.y1 - z.y0, pack(255, 211, 108, 70));
+}
+
+// Crée une zone à partir d'un masque, ou l'ajoute / la retire de la zone active (mod = 'add' | 'sub')
+function zoneFromMask(r, mod) {
   if (!r) return;
+  if (mod && activeZone) { combineZone(activeZone, r, mod); return; }
+  if (mod === 'sub') { toast('Sélectionne d\'abord une zone pour lui retirer des pixels'); return; }
   const id = ++zoneSeq;
-  const z = { id, name: 'Zone ' + id, pts, ...r, params: { ...getParams() }, cache: {}, dirty: true, result: null, crop: null };
+  const z = { id, name: 'Zone ' + id, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, mask: r.mask,
+    params: { ...getParams() }, cache: {}, dirty: true, result: null, crop: null, path: null, tint: null };
   zones.push(z);
   selectZone(z);
   scheduleGenerate();
-  toast(`${z.name} créée : les réglages de gauche ne s'appliquent plus qu'à elle.`, 3500);
+  toast(`${z.name} créée : les réglages de gauche ne s'appliquent plus qu'à elle. Maj+clic = ajouter, Alt+clic = retirer.`, 4000);
+}
+function combineZone(z, r, mode) {
+  const add = mode === 'add';
+  const nx0 = add ? Math.min(z.x0, r.x0) : z.x0, ny0 = add ? Math.min(z.y0, r.y0) : z.y0;
+  const nx1 = add ? Math.max(z.x1, r.x1) : z.x1, ny1 = add ? Math.max(z.y1, r.y1) : z.y1;
+  const nw = nx1 - nx0, m = new Uint8Array(nw * (ny1 - ny0));
+  const zw = z.x1 - z.x0, rw = r.x1 - r.x0;
+  for (let y = z.y0; y < z.y1; y++) for (let x = z.x0; x < z.x1; x++) if (z.mask[(y - z.y0) * zw + x - z.x0]) m[(y - ny0) * nw + x - nx0] = 1;
+  const ry0 = Math.max(r.y0, ny0), ry1 = Math.min(r.y1, ny1), rx0 = Math.max(r.x0, nx0), rx1 = Math.min(r.x1, nx1);
+  for (let y = ry0; y < ry1; y++) for (let x = rx0; x < rx1; x++) if (r.mask[(y - r.y0) * rw + x - r.x0]) m[(y - ny0) * nw + x - nx0] = add ? 1 : 0;
+  if (!m.some(v => v)) { deleteZone(z); return; }
+  Object.assign(z, { x0: nx0, y0: ny0, x1: nx1, y1: ny1, mask: m, path: null, tint: null, dirty: true, result: null });
+  scheduleGenerate(); requestRender();
+}
+function createZone(pts, mod) { zoneFromMask(rasterPoly(pts), mod); }
+
+// Flash visuel temporaire sur les pixels modifiés
+let flash = null;
+function showFlash(r) {
+  if (!r) return;
+  const bw = r.x1 - r.x0, bh = r.y1 - r.y0;
+  flash = { x0: r.x0, y0: r.y0, path: maskPath(r.mask, r.x0, r.y0, bw, bh), tint: maskTint(r.mask, bw, bh, pack(255, 60, 160, 150)), t0: performance.now() };
+  requestRender();
+}
+// Masque (rectangle englobant) à partir des pixels marqués dans `seen`
+function maskFromSeen(minx, miny, maxx, maxy) {
+  if (maxx < minx) return null;
+  const x0 = minx, y0 = miny, x1 = maxx + 1, y1 = maxy + 1, bw = x1 - x0, mask = new Uint8Array(bw * (y1 - y0));
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (seen[y * W + x]) mask[(y - y0) * bw + x - x0] = 1;
+  return { x0, y0, x1, y1, mask };
 }
 function zoneAt(ix, iy) {
   const x = Math.floor(ix), y = Math.floor(iy);
@@ -709,14 +783,16 @@ function render() {
     });
     ctx.closePath();
   };
+  const toImgSpace = () => ctx.setTransform(dpr * z, 0, 0, dpr * z, dpr * view.panX, dpr * view.panY);
   if (showZones) {
     for (const zn of zones) {
       const act = zn === activeZone;
-      polyPath(zn.pts);
-      ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.lineWidth = act ? 4 : 3; ctx.stroke();
-      ctx.strokeStyle = act ? '#ffd36c' : 'rgba(255,211,108,.55)'; ctx.lineWidth = act ? 2 : 1.2;
-      if (!act) ctx.setLineDash([6, 4]);
-      ctx.stroke(); ctx.setLineDash([]);
+      ensureOverlay(zn);
+      toImgSpace();
+      if (act) { ctx.imageSmoothingEnabled = z < 1; ctx.drawImage(zn.tint, zn.x0, zn.y0); }
+      ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.lineWidth = (act ? 4 : 3) / z; ctx.stroke(zn.path);
+      ctx.strokeStyle = act ? '#ffd36c' : 'rgba(255,211,108,.6)'; ctx.lineWidth = (act ? 2 : 1.2) / z; ctx.stroke(zn.path);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const lx = view.panX + zn.x0 * z, ly = view.panY + zn.y0 * z;
       ctx.font = '600 11px system-ui,sans-serif';
       const tw = ctx.measureText(zn.name).width;
@@ -724,6 +800,21 @@ function render() {
       ctx.fillRect(lx, ly - 17, tw + 10, 16);
       ctx.fillStyle = act ? '#2a1f00' : '#ffd36c';
       ctx.fillText(zn.name, lx + 5, ly - 5);
+    }
+  }
+  if (flash) {
+    const t = (performance.now() - flash.t0) / 1500;
+    if (t >= 1) flash = null;
+    else {
+      toImgSpace();
+      ctx.globalAlpha = 1 - t * t;
+      ctx.imageSmoothingEnabled = z < 1;
+      ctx.drawImage(flash.tint, flash.x0, flash.y0);
+      ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.lineWidth = 3.5 / z; ctx.stroke(flash.path);
+      ctx.strokeStyle = '#ff4fa3'; ctx.lineWidth = 2 / z; ctx.stroke(flash.path);
+      ctx.globalAlpha = 1;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      requestRender();
     }
   }
   if ((pointer.mode === 'lasso' || pointer.mode === 'zone') && pointer.lasso.length > 1) {
@@ -812,12 +903,12 @@ function floodFill(x, y, val) {
     if (py < H - 1 && !seen[i + W] && finalAt(i + W) === t) { seen[i + W] = 1; stack[sp++] = i + W; }
   }
   updateDisplay(minx, miny, maxx + 1, maxy + 1); updateStats();
+  showFlash(maskFromSeen(minx, miny, maxx, maxy));
 }
 
-// Baguette magique : pixels de l'illustration proches de la couleur cliquée (distance pondérée, alpha compris)
-function magicWand(x, y, val) {
-  if (x < 0 || y < 0 || x >= W || y >= H) return;
-  pushUndo();
+// Baguette magique : masque des pixels de l'illustration proches de la couleur cliquée (distance pondérée, alpha compris)
+function wandMask(x, y) {
+  if (x < 0 || y < 0 || x >= W || y >= H) return null;
   const d = srcData.data, p0 = (y * W + x) * 4;
   const r0 = d[p0], g0 = d[p0 + 1], b0 = d[p0 + 2], a0 = d[p0 + 3];
   const t2 = tool.tol * tool.tol * 9;
@@ -826,13 +917,12 @@ function magicWand(x, y, val) {
     return 2 * dr * dr + 4 * dg * dg + 3 * db * db + 9 * da * da <= t2;
   };
   let minx = W, maxx = -1, miny = H, maxy = -1, cnt = 0;
+  seen.fill(0);
   if ($('#wandContig').checked) {
-    seen.fill(0);
     const start = y * W + x;
     let sp = 0; stack[sp++] = start; seen[start] = 1;
     while (sp) {
-      const i = stack[--sp];
-      over[i] = val; cnt++;
+      const i = stack[--sp]; cnt++;
       const px = i % W, py = (i - px) / W;
       if (px < minx) minx = px; if (px > maxx) maxx = px; if (py < miny) miny = py; if (py > maxy) maxy = py;
       if (px > 0 && !seen[i - 1] && match(i - 1)) { seen[i - 1] = 1; stack[sp++] = i - 1; }
@@ -842,13 +932,25 @@ function magicWand(x, y, val) {
     }
   } else {
     for (let i = 0; i < N; i++) if (match(i)) {
-      over[i] = val; cnt++;
+      seen[i] = 1; cnt++;
       const px = i % W, py = (i - px) / W;
       if (px < minx) minx = px; if (px > maxx) maxx = px; if (py < miny) miny = py; if (py > maxy) maxy = py;
     }
   }
-  updateDisplay(minx, miny, maxx + 1, maxy + 1); updateStats();
-  toast(`${cnt.toLocaleString('fr-FR')} px ${val === 2 ? 'passés en blanc' : val === 1 ? 'passés en noir' : 'remis en auto'}`, 1600);
+  const r = maskFromSeen(minx, miny, maxx, maxy);
+  if (r) r.cnt = cnt;
+  return r;
+}
+function wandClick(x, y, val, mod) {
+  const r = wandMask(x, y);
+  if (!r) return;
+  if (tool.wandMode === 'zone') { zoneFromMask(r, mod); return; }
+  pushUndo();
+  const bw = r.x1 - r.x0;
+  for (let yy = r.y0; yy < r.y1; yy++) for (let xx = r.x0; xx < r.x1; xx++) if (r.mask[(yy - r.y0) * bw + xx - r.x0]) over[yy * W + xx] = val;
+  updateDisplay(r.x0, r.y0, r.x1, r.y1); updateStats();
+  showFlash(r);
+  toast(`${r.cnt.toLocaleString('fr-FR')} px ${val === 2 ? 'passés en blanc' : val === 1 ? 'passés en noir' : 'remis en auto'}`, 1600);
 }
 function setTol(t) {
   tool.tol = Math.round(Math.min(160, Math.max(0, t)));
@@ -893,6 +995,8 @@ cv.addEventListener('pointerdown', e => {
   if (e.button !== 0 && e.button !== 2) return;
   const val = e.button === 2 ? altPaint(tool.paint) : tool.paint;
   pointer.val = val;
+  pointer.mod = e.shiftKey ? 'add' : e.altKey ? 'sub' : null;
+  if (e.altKey) e.preventDefault();
   if (tool.name === 'brush') {
     pushUndo(); pointer.mode = 'brush'; pointer.lx = ix; pointer.ly = iy;
     stampLine(ix, iy, ix, iy);
@@ -901,7 +1005,7 @@ cv.addEventListener('pointerdown', e => {
   } else if (tool.name === 'fill') {
     floodFill(Math.floor(ix), Math.floor(iy), val);
   } else if (tool.name === 'wand') {
-    magicWand(Math.floor(ix), Math.floor(iy), val);
+    wandClick(Math.floor(ix), Math.floor(iy), val, pointer.mod);
   } else if (tool.name === 'picker') {
     pickColor(ix, iy);
   }
@@ -930,7 +1034,7 @@ function endPointer() {
   if (pointer.mode === 'brush') updateStats();
   else if (pointer.mode === 'lasso' && pointer.lasso.length >= 3) applyLasso(pointer.lasso, pointer.val);
   else if (pointer.mode === 'zone') {
-    if (pointer.lasso.length >= 3) createZone(pointer.lasso);
+    if (pointer.lasso.length >= 3) createZone(pointer.lasso, pointer.mod);
     else { const [ix, iy] = pointer.lasso[0]; selectZone(zoneAt(ix, iy)); } // simple clic = sélection
   }
   pointer.mode = null; pointer.lasso = [];
@@ -971,6 +1075,8 @@ function setTool(name) {
   $('#sizeWrap').classList.toggle('hidden', name === 'wand');
   $('#sizeWrap').style.opacity = name === 'brush' ? 1 : .45;
   $('#wandWrap').classList.toggle('hidden', name !== 'wand');
+  updatePaintsUI();
+  if (name === 'wand' && tool.wandMode === 'zone' && N) toast('Baguette → Zone : clic = nouvelle zone · Maj+clic = ajouter · Alt+clic = retirer', 3500);
   updateCursor(); requestRender();
 }
 function setPaint(v) {
@@ -1033,6 +1139,14 @@ $$('#paints button').forEach(b => b.addEventListener('click', () => setPaint(+b.
 $$('#views button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
 $('#size').addEventListener('input', () => setSize(+$('#size').value));
 $('#tol').addEventListener('input', () => setTol(+$('#tol').value));
+function setWandMode(m) {
+  tool.wandMode = m;
+  $$('#wandModes button').forEach(b => b.classList.toggle('on', b.dataset.wm === m));
+  updatePaintsUI();
+}
+// Les couleurs ne servent à rien quand la baguette crée des zones : on les grise
+function updatePaintsUI() { $('#paints').style.opacity = (tool.name === 'wand' && tool.wandMode === 'zone') || tool.name === 'zone' ? .35 : 1; }
+$$('#wandModes button').forEach(b => b.addEventListener('click', () => setWandMode(b.dataset.wm)));
 $('#btnUndo').addEventListener('click', undo);
 $('#btnRedo').addEventListener('click', redo);
 $('#btnFit').addEventListener('click', fit);
@@ -1166,7 +1280,7 @@ async function exportPNG() {
 $('#btnExport').addEventListener('click', exportPNG);
 
 /* ================= Init ================= */
-setTool('brush'); setPaint(2); setSize(40); setTol(32); setView('map');
+setWandMode('zone'); setTool('brush'); setPaint(2); setSize(40); setTol(32); setView('map');
 refreshOutputs(); updateUndoUI(); updateExportUI();
 </script>
 </body>

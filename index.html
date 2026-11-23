@@ -1,0 +1,1118 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foil Map Maker</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='f' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233ad0ff'/%3E%3Cstop offset='.5' stop-color='%23b06cff'/%3E%3Cstop offset='1' stop-color='%23ffd36c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='12' y='4' width='40' height='56' rx='6' fill='%23111' stroke='url(%23f)' stroke-width='4'/%3E%3Cpath d='M32 14l4.5 10.5L47 29l-10.5 4.5L32 44l-4.5-10.5L17 29l10.5-4.5z' fill='url(%23f)'/%3E%3Ccircle cx='42' cy='48' r='3' fill='url(%23f)'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#121317; --panel:#1c1d23; --panel2:#25262e; --line:#30323c; --text:#e7e7ec; --muted:#9799a8;
+  --accent:#3ad0ff; --accent-ink:#06222c; --danger:#ff5c7a; --warn:#ffc35c;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font:13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{display:grid;grid-template-rows:48px 1fr;overflow:hidden}
+header{display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+.logo{font-weight:750;font-size:15px;letter-spacing:.2px;margin-right:10px;
+  background:linear-gradient(90deg,#3ad0ff,#b06cff 50%,#ffd36c);-webkit-background-clip:text;background-clip:text;color:transparent}
+.spacer{flex:1}
+#app{display:grid;grid-template-columns:320px 1fr;min-height:0}
+aside{overflow:auto;border-right:1px solid var(--line);background:var(--panel);padding:4px 14px 40px}
+section{border-bottom:1px solid var(--line);padding:12px 0 14px}
+section:last-child{border-bottom:0}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px;font-weight:650}
+.row{display:flex;align-items:center;gap:8px;margin:6px 0}
+.row > .lbl{flex:0 0 118px;color:var(--muted)}
+.row input[type=range]{flex:1;min-width:0}
+.row output{flex:0 0 42px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text)}
+.hint{color:var(--muted);font-size:12px;margin:6px 0}
+.warn{color:var(--warn);font-size:12px;margin:6px 0}
+input[type=range]{accent-color:var(--accent)}
+input[type=checkbox]{accent-color:var(--accent)}
+select,input[type=number]{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 6px;font:inherit}
+select{flex:1;min-width:0}
+input[type=number]{width:80px}
+input[type=color]{width:34px;height:26px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);padding:2px}
+label.check{display:flex;align-items:center;gap:7px;margin:7px 0;cursor:pointer}
+button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px 10px;font:inherit;cursor:pointer;white-space:nowrap}
+button:hover{border-color:#4a4d5a;background:#2c2d36}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:650}
+button.primary:hover{filter:brightness(1.08)}
+button.danger{color:var(--danger)}
+.btns{display:flex;gap:6px;flex-wrap:wrap}
+canvas#hist{width:100%;height:56px;display:block;background:var(--panel2);border-radius:6px;border:1px solid var(--line)}
+#stage{position:relative;overflow:hidden;background:#0d0e11;
+  background-image:radial-gradient(#1b1c22 1px,transparent 1px);background-size:18px 18px}
+#view{position:absolute;left:0;top:0;width:100%;height:100%;display:block;touch-action:none}
+#toolbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;flex-wrap:wrap;align-items:center;gap:4px;
+  background:rgba(28,29,35,.94);border:1px solid var(--line);border-radius:11px;padding:5px;max-width:calc(100% - 20px);
+  box-shadow:0 6px 24px rgba(0,0,0,.4);z-index:2}
+#toolbar .sep{width:1px;height:24px;background:var(--line);margin:0 4px}
+.seg{display:flex;gap:2px}
+.seg button{padding:5px 9px;border-color:transparent;background:transparent}
+.seg button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.swatch{width:26px;height:26px;padding:0;border-radius:6px;border:2px solid transparent;position:relative}
+.swatch.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.sw-white{background:#fff}.sw-black{background:#000;border-color:#444}
+.sw-auto{background:repeating-linear-gradient(45deg,#666 0 4px,#333 4px 8px)}
+.sw-white.on,.sw-black.on,.sw-auto.on{border-color:var(--accent)}
+#sizeWrap{display:flex;align-items:center;gap:6px;padding:0 4px;color:var(--muted)}
+#sizeWrap input{width:110px}
+#sizeOut{width:42px;color:var(--text);font-variant-numeric:tabular-nums}
+#status{position:absolute;left:10px;bottom:8px;display:flex;gap:14px;color:var(--muted);font-size:12px;
+  background:rgba(28,29,35,.85);border:1px solid var(--line);border-radius:7px;padding:4px 10px;font-variant-numeric:tabular-nums;z-index:2}
+#status b{color:var(--text);font-weight:600}
+#drop{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;pointer-events:none}
+#drop .box{pointer-events:auto;text-align:center;border:2px dashed #3a3d49;border-radius:16px;padding:40px 50px;background:rgba(28,29,35,.8);max-width:460px}
+#drop .box h3{margin:0 0 6px;font-size:17px}
+#drop .box p{color:var(--muted);margin:6px 0 16px}
+#stage.dragging #drop{display:flex !important}
+#stage.dragging #drop .box{border-color:var(--accent)}
+#toast{position:absolute;left:50%;bottom:44px;transform:translateX(-50%) translateY(10px);opacity:0;transition:.25s;
+  background:#2b2d38;border:1px solid var(--line);padding:8px 14px;border-radius:8px;z-index:5;pointer-events:none;max-width:80%;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.keys{color:var(--muted);font-size:12px;line-height:1.7}
+kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font:11px ui-monospace,Consolas,monospace;color:var(--text)}
+.hidden{display:none !important}
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">Foil Map Maker</span>
+  <button id="btnOpen" title="Ctrl+O">Ouvrir une image…</button>
+  <button id="btnImportMap" title="Charger une map noir/blanc existante">Importer une map…</button>
+  <span class="spacer"></span>
+  <span id="info" class="hint" style="margin:0"></span>
+  <input type="file" id="fileImg" accept="image/*" hidden>
+  <input type="file" id="fileMap" accept="image/*" hidden>
+</header>
+
+<div id="app">
+<aside>
+  <section>
+    <h2>Génération automatique</h2>
+    <div class="row"><span class="lbl">Réglages de</span>
+      <select id="zoneSel"><option value="">Image entière</option></select>
+      <button id="btnZoneDel" class="danger" title="Supprimer la zone (Suppr)" disabled>✕</button>
+    </div>
+    <div class="row" style="justify-content:space-between">
+      <button id="btnZoneNew" title="Z">+ Nouvelle zone</button>
+      <label class="check" style="margin:0"><input type="checkbox" id="showZones" checked> Contours</label>
+    </div>
+    <p id="zoneHint" class="hint"></p>
+    <div class="row"><span class="lbl">Source</span>
+      <select id="mode">
+        <option value="lum">Luminosité</option>
+        <option value="sat">Saturation</option>
+        <option value="color">Similarité à une couleur</option>
+        <option value="alpha">Opacité (alpha)</option>
+      </select>
+    </div>
+    <div class="row" id="colorRow"><span class="lbl">Couleur cible</span>
+      <input type="color" id="color" value="#ffd36c">
+      <button id="btnPick" title="Pipette (I) : clique sur l'image">Pipette</button>
+    </div>
+    <canvas id="hist" width="256" height="56"></canvas>
+    <div class="row"><span class="lbl">Seuil min</span><input type="range" id="lo" min="0" max="255" value="128"><output id="loOut"></output></div>
+    <div class="row"><span class="lbl">Seuil max</span><input type="range" id="hi" min="0" max="255" value="255"><output id="hiOut"></output></div>
+    <label class="check"><input type="checkbox" id="inv"> Inverser (blanc ↔ noir)</label>
+    <div class="row"><span class="lbl">Flou de la source</span><input type="range" id="blur" min="0" max="12" value="0"><output id="blurOut"></output></div>
+    <div class="row"><span class="lbl">Lissage contours</span><input type="range" id="smooth" min="0" max="12" value="1"><output id="smoothOut"></output></div>
+    <div class="row"><span class="lbl">Épaissir / amincir</span><input type="range" id="grow" min="-20" max="20" value="0"><output id="growOut"></output></div>
+    <div class="row"><span class="lbl">Retirer taches &lt;</span><input type="range" id="specks" min="0" max="2000" step="5" value="20"><output id="specksOut"></output></div>
+    <div class="row"><span class="lbl">Boucher trous &lt;</span><input type="range" id="holes" min="0" max="2000" step="5" value="20"><output id="holesOut"></output></div>
+    <div class="btns" style="justify-content:space-between;align-items:center">
+      <button id="btnResetParams">Réglages par défaut</button>
+      <span id="genTime" class="hint" style="margin:0"></span>
+    </div>
+    <p class="hint">Les pixels dont la valeur est entre min et max deviennent <b>blancs (foil)</b>. Tes retouches sont conservées quand tu changes les réglages.</p>
+  </section>
+
+  <section>
+    <h2>Retouches</h2>
+    <label class="check"><input type="checkbox" id="showEdits"> Mettre en évidence les retouches <kbd>R</kbd></label>
+    <div class="btns">
+      <button id="btnClearEdits" class="danger">Effacer toutes les retouches</button>
+    </div>
+    <p class="hint">Couleur <b>Auto</b> = gomme : la zone revient au calcul automatique.<br>Clic droit = peindre avec la couleur opposée.</p>
+  </section>
+
+  <section>
+    <h2>Affichage</h2>
+    <div class="row"><span class="lbl">Intensité superp.</span><input type="range" id="opacity" min="0" max="100" value="60"><output id="opacityOut"></output></div>
+    <div class="row"><span class="lbl">Teinte du foil</span><input type="color" id="tint" value="#3ad0ff"></div>
+    <label class="check"><input type="checkbox" id="trim" checked> Trait de coupe (fond perdu 3 mm) <kbd>T</kbd></label>
+  </section>
+
+  <section>
+    <h2>Export</h2>
+    <div class="row"><span class="lbl">Résolution</span>
+      <select id="exRes">
+        <option value="orig">Taille de l'image</option>
+        <option value="tcg">1630 × 2220 (TCG Printery)</option>
+        <option value="custom">Personnalisée…</option>
+      </select>
+    </div>
+    <div class="row hidden" id="customRow"><span class="lbl">Taille (px)</span>
+      <input type="number" id="exW" min="1" value="1630"> × <input type="number" id="exH" min="1" value="2220">
+    </div>
+    <div class="row" id="fitRow"><span class="lbl">Si le ratio diffère</span>
+      <select id="exFit">
+        <option value="stretch">Étirer</option>
+        <option value="cover">Recadrer (centré)</option>
+        <option value="contain">Ajuster (bandes noires)</option>
+      </select>
+    </div>
+    <label class="check"><input type="checkbox" id="exArt"> Exporter aussi l'illustration à la même taille</label>
+    <div id="exWarn" class="warn"></div>
+    <button id="btnExport" class="primary" style="width:100%" title="Ctrl+S" disabled>Exporter la map PNG</button>
+    <p class="hint">Sortie en noir et blanc pur : blanc = foil, noir = pas de foil. 1630 × 2220 px = carte 63 × 88 mm + 3 mm de fond perdu (~600 dpi).</p>
+  </section>
+
+  <section>
+    <h2>Raccourcis</h2>
+    <div class="keys">
+      <kbd>B</kbd> pinceau · <kbd>L</kbd> lasso · <kbd>G</kbd> remplissage · <kbd>I</kbd> pipette<br>
+      <kbd>Z</kbd> zone (entourer = créer, clic = sélectionner) · <kbd>Suppr</kbd> supprimer la zone<br>
+      <kbd>X</kbd> blanc ↔ noir · <kbd>E</kbd> auto (gomme) · <kbd>[</kbd> <kbd>]</kbd> taille<br>
+      <kbd>1</kbd> map · <kbd>2</kbd> superposition · <kbd>3</kbd> original · <kbd>0</kbd> ajuster<br>
+      Molette = zoom · <kbd>Espace</kbd>+glisser ou clic molette = déplacer<br>
+      <kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> annuler / rétablir · <kbd>Ctrl</kbd>+<kbd>S</kbd> exporter
+    </div>
+  </section>
+</aside>
+
+<main id="stage">
+  <canvas id="view"></canvas>
+  <div id="toolbar">
+    <div class="seg" id="tools">
+      <button data-tool="brush" title="Pinceau (B)">Pinceau</button>
+      <button data-tool="lasso" title="Lasso : entoure une zone pour la remplir (L)">Lasso</button>
+      <button data-tool="fill" title="Remplissage d'une zone connexe (G)">Remplir</button>
+      <button data-tool="zone" title="Zone : entoure une partie de l'image pour lui donner ses propres seuils ; clic simple = sélectionner une zone (Z)">Zone</button>
+    </div>
+    <span class="sep"></span>
+    <div class="seg" id="paints">
+      <button class="swatch sw-white" data-paint="2" title="Blanc = foil"></button>
+      <button class="swatch sw-black" data-paint="1" title="Noir = pas de foil"></button>
+      <button class="swatch sw-auto" data-paint="0" title="Auto = annule la retouche (E)"></button>
+    </div>
+    <span id="sizeWrap" title="Taille du pinceau ([ et ])">⌀ <input type="range" id="size" min="1" max="400" value="40"><span id="sizeOut"></span></span>
+    <span class="sep"></span>
+    <button id="btnUndo" title="Annuler (Ctrl+Z)">↶</button>
+    <button id="btnRedo" title="Rétablir (Ctrl+Y)">↷</button>
+    <span class="sep"></span>
+    <div class="seg" id="views">
+      <button data-view="map" title="1">Map</button>
+      <button data-view="overlay" title="2">Superposition</button>
+      <button data-view="original" title="3">Original</button>
+    </div>
+    <button id="btnFit" title="Ajuster à l'écran (0)">⤢</button>
+  </div>
+  <div id="drop">
+    <div class="box">
+      <h3>Dépose une illustration ici</h3>
+      <p>PNG, JPG, WebP… La map est générée à la résolution de l'image. Tu peux aussi coller une image avec Ctrl+V.</p>
+      <button class="primary" id="btnOpen2">Ouvrir une image…</button>
+    </div>
+  </div>
+  <div id="status">
+    <span>Zoom <b id="stZoom">–</b></span>
+    <span>Pos <b id="stPos">–</b></span>
+    <span id="stCov">–</span>
+  </div>
+  <div id="toast"></div>
+</main>
+</div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+/* ================= État ================= */
+let W = 0, H = 0, N = 0, baseName = 'carte';
+const srcCanvas = document.createElement('canvas');
+const srcCtx = srcCanvas.getContext('2d', { willReadFrequently: true });
+const dispCanvas = document.createElement('canvas');
+const dispCtx = dispCanvas.getContext('2d');
+let srcData = null, dispImg = null, dispBuf = null;
+let autoMask = null;                       // 0/1 calcul automatique (image entière + zones)
+let over = null;                           // retouches : 0 auto, 1 noir forcé, 2 blanc forcé
+let stack = null, region = null, seen = null;
+let undoStack = [], redoStack = [];
+const UNDO_MAX = 40;
+
+const view = { mode: 'map', zoom: 1, panX: 0, panY: 0, opacity: 0.6, tint: '#3ad0ff', showEdits: false, trim: true };
+const tool = { name: 'brush', paint: 2, size: 40, prev: 'brush' };
+const pointer = { x: 0, y: 0, inside: false, mode: null, val: 2, lx: 0, ly: 0, lasso: [], sx: 0, sy: 0, px: 0, py: 0 };
+let spaceDown = false;
+
+const DEFAULTS = { mode: 'lum', lo: 128, hi: 255, inv: false, blur: 0, smooth: 1, grow: 0, specks: 20, holes: 20 };
+const MODE_RANGE = { lum: [128, 255], sat: [110, 255], color: [200, 255], alpha: [128, 255] };
+const TCG_W = 1630, TCG_H = 2220;
+let globalParams = { ...DEFAULTS };
+let globalCache = { dirty: true };         // cache du calcul image entière
+let zones = [], activeZone = null, zoneSeq = 0;
+let showZones = true;
+
+/* ================= Utilitaires ================= */
+const pack = (r, g, b, a) => ((a << 24) | (b << 16) | (g << 8) | r) >>> 0;
+const WHITE = pack(255, 255, 255, 255), BLACK = pack(0, 0, 0, 255);
+function hex2rgb(h) { const n = parseInt(h.slice(1), 16); return { r: n >> 16 & 255, g: n >> 8 & 255, b: n & 255 }; }
+function rgb2hex(r, g, b) { return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join(''); }
+const finalAt = i => { const o = over[i]; return o ? o - 1 : autoMask[i]; };
+let toastT = 0;
+function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms); }
+
+/* ================= Chargement ================= */
+function loadFile(file, asMap) {
+  if (!file || !file.type.startsWith('image/')) { toast('Ce fichier n\'est pas une image.'); return; }
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    const name = (file.name || 'carte').replace(/\.[^.]+$/, '') || 'carte';
+    asMap ? importMap(img, name) : setSource(img, name);
+    URL.revokeObjectURL(url);
+  };
+  img.onerror = () => { toast('Impossible de lire cette image.'); URL.revokeObjectURL(url); };
+  img.src = url;
+}
+
+function setSource(img, name) {
+  baseName = name;
+  W = img.naturalWidth; H = img.naturalHeight; N = W * H;
+  srcCanvas.width = W; srcCanvas.height = H;
+  srcCtx.clearRect(0, 0, W, H);
+  srcCtx.drawImage(img, 0, 0);
+  srcData = srcCtx.getImageData(0, 0, W, H);
+  dispCanvas.width = W; dispCanvas.height = H;
+  dispImg = dispCtx.createImageData(W, H);
+  dispBuf = new Uint32Array(dispImg.data.buffer);
+  autoMask = new Uint8Array(N); over = new Uint8Array(N);
+  stack = new Int32Array(N); region = new Int32Array(N); seen = new Uint8Array(N);
+  undoStack = []; redoStack = [];
+  globalParams = getParams(); globalCache = { dirty: true };
+  zones = []; activeZone = null; zoneSeq = 0; updateZoneUI();
+  $('#drop').classList.add('hidden');
+  $('#btnExport').disabled = false;
+  const ratio = (W / H).toFixed(3);
+  $('#info').textContent = `${name} — ${W} × ${H} px (ratio ${ratio})`;
+  updateExportUI();
+  fit();
+  generate();
+  updateUndoUI();
+}
+
+function importMap(img, name) {
+  if (!N) {
+    // Pas d'illustration : la map devient la source, seuillée à 50 %.
+    setParams({ ...DEFAULTS, smooth: 0, specks: 0, holes: 0 });
+    setSource(img, name);
+    toast('Map chargée comme source : tu peux la retoucher directement.');
+    return;
+  }
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(img, 0, 0, W, H);
+  const d = g.getImageData(0, 0, W, H).data;
+  pushUndo();
+  for (let i = 0, p = 0; i < N; i++, p += 4) over[i] = (d[p] * 54 + d[p + 1] * 183 + d[p + 2] * 19) >> 8 >= 128 ? 2 : 1;
+  updateDisplay(); updateStats();
+  toast('Map importée comme calque de retouches. Les réglages auto n\'auront d\'effet qu\'après « Effacer toutes les retouches » ou à la gomme Auto.', 5000);
+}
+
+/* ================= Génération ================= */
+function getParams() {
+  return {
+    mode: $('#mode').value, color: $('#color').value,
+    lo: +$('#lo').value, hi: +$('#hi').value, inv: $('#inv').checked,
+    blur: +$('#blur').value, smooth: +$('#smooth').value, grow: +$('#grow').value,
+    specks: +$('#specks').value, holes: +$('#holes').value,
+  };
+}
+function setParams(p) {
+  $('#mode').value = p.mode; $('#lo').value = p.lo; $('#hi').value = p.hi; $('#inv').checked = p.inv;
+  $('#blur').value = p.blur; $('#smooth').value = p.smooth; $('#grow').value = p.grow;
+  $('#specks').value = p.specks; $('#holes').value = p.holes;
+  refreshOutputs();
+}
+
+function computeValue(P, x0, y0, w, h) {
+  const d = srcData.data, out = new Float32Array(w * h);
+  const t = hex2rgb(P.color);
+  let fn;
+  if (P.mode === 'lum') fn = p => ((d[p] * 54 + d[p + 1] * 183 + d[p + 2] * 19) >> 8) * d[p + 3] / 255;
+  else if (P.mode === 'sat') fn = p => {
+    const r = d[p], g = d[p + 1], b = d[p + 2];
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    return mx ? (mx - mn) * 255 / mx * d[p + 3] / 255 : 0;
+  };
+  else if (P.mode === 'alpha') fn = p => d[p + 3];
+  else fn = p => {
+    const dr = d[p] - t.r, dg = d[p + 1] - t.g, db = d[p + 2] - t.b;
+    return Math.max(0, 255 - Math.sqrt((2 * dr * dr + 4 * dg * dg + 3 * db * db) / 9)) * d[p + 3] / 255;
+  };
+  for (let y = 0; y < h; y++) {
+    let i = y * w, p = ((y + y0) * W + x0) * 4;
+    for (let x = 0; x < w; x++, i++, p += 4) out[i] = fn(p);
+  }
+  return out;
+}
+
+function boxH(src, dst, w, h, r) {
+  const k = 1 / (2 * r + 1);
+  for (let y = 0; y < h; y++) {
+    const o = y * w; let acc = src[o] * r;
+    for (let x = 0; x < r; x++) acc += src[o + Math.min(x, w - 1)];
+    for (let x = 0; x < w; x++) {
+      acc += src[o + Math.min(x + r, w - 1)];
+      dst[o + x] = acc * k;
+      acc -= src[o + Math.max(x - r, 0)];
+    }
+  }
+}
+function boxV(src, dst, w, h, r) {
+  const k = 1 / (2 * r + 1);
+  for (let x = 0; x < w; x++) {
+    let acc = src[x] * r;
+    for (let y = 0; y < r; y++) acc += src[Math.min(y, h - 1) * w + x];
+    for (let y = 0; y < h; y++) {
+      acc += src[Math.min(y + r, h - 1) * w + x];
+      dst[y * w + x] = acc * k;
+      acc -= src[Math.max(y - r, 0) * w + x];
+    }
+  }
+}
+function blur(f, w, h, r, passes = 2) {
+  const t = new Float32Array(w * h);
+  for (let p = 0; p < passes; p++) { boxH(f, t, w, h, r); boxV(t, f, w, h, r); }
+  return f;
+}
+
+// Transformée de distance euclidienne exacte (Felzenszwalb) — distance² au pixel == target le plus proche
+function edt1d(f, d, v, z, n) {
+  const INF = 1e20;
+  v[0] = 0; z[0] = -INF; z[1] = INF;
+  for (let q = 1, k = 0, s = 0; q < n; q++) {
+    do { const r = v[k]; s = (f[q] - f[r] + q * q - r * r) / (q - r) / 2; } while (s <= z[k] && --k > -1);
+    k++; v[k] = q; z[k] = s; z[k + 1] = INF;
+  }
+  for (let q = 0, k = 0; q < n; q++) {
+    while (z[k + 1] < q) k++;
+    const r = v[k]; d[q] = (q - r) * (q - r) + f[r];
+  }
+}
+function edt(m, w, h, target) {
+  const g = new Float64Array(w * h);
+  for (let i = 0; i < w * h; i++) g[i] = m[i] === target ? 0 : 1e20;
+  const n = Math.max(w, h);
+  const f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) f[y] = g[y * w + x];
+    edt1d(f, d, v, z, h);
+    for (let y = 0; y < h; y++) g[y * w + x] = d[y];
+  }
+  for (let y = 0; y < h; y++) {
+    const o = y * w;
+    for (let x = 0; x < w; x++) f[x] = g[o + x];
+    edt1d(f, d, v, z, w);
+    for (let x = 0; x < w; x++) g[o + x] = d[x];
+  }
+  return g;
+}
+
+function removeIslands(m, w, h, target, minSize) {
+  const n = w * h;
+  seen.fill(0, 0, n);
+  for (let s = 0; s < n; s++) {
+    if (seen[s] || m[s] !== target) continue;
+    let sp = 0, cnt = 0;
+    stack[sp++] = s; seen[s] = 1;
+    while (sp) {
+      const i = stack[--sp];
+      if (cnt < minSize) region[cnt] = i;
+      cnt++;
+      const x = i % w;
+      if (x > 0 && !seen[i - 1] && m[i - 1] === target) { seen[i - 1] = 1; stack[sp++] = i - 1; }
+      if (x < w - 1 && !seen[i + 1] && m[i + 1] === target) { seen[i + 1] = 1; stack[sp++] = i + 1; }
+      if (i >= w && !seen[i - w] && m[i - w] === target) { seen[i - w] = 1; stack[sp++] = i - w; }
+      if (i < n - w && !seen[i + w] && m[i + w] === target) { seen[i + w] = 1; stack[sp++] = i + w; }
+    }
+    if (cnt < minSize) for (let k = 0; k < cnt; k++) m[region[k]] = 1 - target;
+  }
+}
+
+function histogramOf(v) {
+  const hst = new Float64Array(256);
+  const step = Math.max(1, Math.floor(v.length / 400000));
+  for (let i = 0; i < v.length; i += step) hst[Math.min(255, Math.round(v[i]))]++;
+  return hst;
+}
+
+// Calcule le masque auto (0/1) pour un rectangle de l'image avec les réglages P.
+function runPipeline(P, x0, y0, w, h, cache) {
+  const n = w * h;
+  const key = [P.mode, P.mode === 'color' ? P.color : '', P.blur, x0, y0, w, h].join('|');
+  if (cache.key !== key) {
+    cache.valF = computeValue(P, x0, y0, w, h);
+    if (P.blur > 0) blur(cache.valF, w, h, P.blur, 3);
+    cache.hist = histogramOf(cache.valF);
+    cache.key = key;
+  }
+  const v = cache.valF, m = new Uint8Array(n), lo = P.lo, hi = P.hi, inv = P.inv;
+  for (let i = 0; i < n; i++) { const x = v[i]; m[i] = ((x >= lo && x <= hi) !== inv) ? 1 : 0; }
+  if (P.smooth > 0) {
+    const f = new Float32Array(n);
+    for (let i = 0; i < n; i++) f[i] = m[i];
+    blur(f, w, h, P.smooth, 2);
+    for (let i = 0; i < n; i++) m[i] = f[i] >= 0.5 ? 1 : 0;
+  }
+  if (P.grow !== 0) {
+    const r2 = P.grow * P.grow;
+    if (P.grow > 0) { const d = edt(m, w, h, 1); for (let i = 0; i < n; i++) m[i] = d[i] <= r2 ? 1 : 0; }
+    else { const d = edt(m, w, h, 0); for (let i = 0; i < n; i++) m[i] = d[i] <= r2 ? 0 : 1; }
+  }
+  if (P.specks > 0) removeIslands(m, w, h, 1, P.specks);
+  if (P.holes > 0) removeIslands(m, w, h, 0, P.holes);
+  return m;
+}
+
+function generate() {
+  if (!N) return;
+  const t0 = performance.now();
+  if (globalCache.dirty || !globalCache.mask) {
+    globalCache.mask = runPipeline(globalParams, 0, 0, W, H, globalCache);
+    globalCache.dirty = false;
+  }
+  autoMask.set(globalCache.mask);
+  for (const z of zones) {
+    if (z.dirty || !z.result) {
+      // marge autour de la zone pour que flou / lissage / épaississement aient du contexte
+      const P = z.params, mg = 3 * P.blur + 2 * P.smooth + Math.abs(P.grow) + 48;
+      const cx0 = Math.max(0, z.x0 - mg), cy0 = Math.max(0, z.y0 - mg);
+      const cx1 = Math.min(W, z.x1 + mg), cy1 = Math.min(H, z.y1 + mg);
+      z.crop = [cx0, cy0, cx1 - cx0];
+      z.result = runPipeline(P, cx0, cy0, cx1 - cx0, cy1 - cy0, z.cache);
+      z.dirty = false;
+    }
+    const [cx0, cy0, cw2] = z.crop, bw = z.x1 - z.x0;
+    for (let y = z.y0; y < z.y1; y++) {
+      const mo = (y - z.y0) * bw - z.x0, ro = (y - cy0) * cw2 - cx0, o = y * W;
+      for (let x = z.x0; x < z.x1; x++) if (z.mask[mo + x]) autoMask[o + x] = z.result[ro + x];
+    }
+  }
+  updateDisplay();
+  updateStats();
+  drawHistogram();
+  $('#genTime').textContent = `généré en ${Math.round(performance.now() - t0)} ms`;
+}
+
+let genQueued = false;
+function scheduleGenerate() {
+  if (genQueued) return;
+  genQueued = true;
+  requestAnimationFrame(() => { genQueued = false; generate(); });
+}
+
+// Appelé quand un réglage change : met à jour la cible active (image entière ou zone)
+function onParamsChanged() {
+  const P = getParams();
+  if (activeZone) { activeZone.params = P; activeZone.dirty = true; }
+  else { globalParams = P; globalCache.dirty = true; }
+  refreshOutputs();
+  scheduleGenerate();
+}
+
+/* ================= Zones ================= */
+// Rasterise un polygone (coords image) → { x0, y0, x1, y1, mask } (masque à la taille du rectangle englobant)
+function rasterPoly(pts) {
+  let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+  for (const [x, y] of pts) { minx = Math.min(minx, x); miny = Math.min(miny, y); maxx = Math.max(maxx, x); maxy = Math.max(maxy, y); }
+  const x0 = Math.max(0, Math.floor(minx)), y0 = Math.max(0, Math.floor(miny));
+  const x1 = Math.min(W, Math.ceil(maxx)), y1 = Math.min(H, Math.ceil(maxy));
+  const bw = x1 - x0, bh = y1 - y0;
+  if (bw <= 0 || bh <= 0) return null;
+  const c = document.createElement('canvas'); c.width = bw; c.height = bh;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.beginPath();
+  pts.forEach(([x, y], k) => k ? g.lineTo(x - x0, y - y0) : g.moveTo(x - x0, y - y0));
+  g.closePath(); g.fillStyle = '#fff'; g.fill();
+  const a = g.getImageData(0, 0, bw, bh).data, mask = new Uint8Array(bw * bh);
+  let any = 0;
+  for (let i = 0; i < mask.length; i++) if (a[i * 4 + 3] >= 128) { mask[i] = 1; any = 1; }
+  return any ? { x0, y0, x1, y1, mask } : null;
+}
+
+function createZone(pts) {
+  const r = rasterPoly(pts);
+  if (!r) return;
+  const id = ++zoneSeq;
+  const z = { id, name: 'Zone ' + id, pts, ...r, params: { ...getParams() }, cache: {}, dirty: true, result: null, crop: null };
+  zones.push(z);
+  selectZone(z);
+  scheduleGenerate();
+  toast(`${z.name} créée : les réglages de gauche ne s'appliquent plus qu'à elle.`, 3500);
+}
+function zoneAt(ix, iy) {
+  const x = Math.floor(ix), y = Math.floor(iy);
+  for (let k = zones.length - 1; k >= 0; k--) {
+    const z = zones[k];
+    if (x >= z.x0 && x < z.x1 && y >= z.y0 && y < z.y1 && z.mask[(y - z.y0) * (z.x1 - z.x0) + x - z.x0]) return z;
+  }
+  return null;
+}
+function selectZone(z) {
+  activeZone = z;
+  setParams(z ? z.params : globalParams);
+  updateZoneUI();
+  drawHistogram();
+  requestRender();
+}
+function deleteZone(z) {
+  if (!z) return;
+  zones = zones.filter(o => o !== z);
+  selectZone(null);
+  scheduleGenerate();
+  toast(`${z.name} supprimée`);
+}
+function updateZoneUI() {
+  const sel = $('#zoneSel');
+  sel.innerHTML = '<option value="">Image entière</option>' + zones.map(z => `<option value="${z.id}">${z.name}</option>`).join('');
+  sel.value = activeZone ? activeZone.id : '';
+  $('#btnZoneDel').disabled = !activeZone;
+  $('#zoneHint').innerHTML = activeZone
+    ? `Tu modifies <b>${activeZone.name}</b> : ces réglages remplacent ceux de l'image entière à l'intérieur de la zone.`
+    : (zones.length ? 'Réglages de l\'image entière (hors zones).' : '');
+}
+
+/* ================= Histogramme ================= */
+function drawHistogram() {
+  const c = $('#hist'), g = c.getContext('2d');
+  const w = c.width, h = c.height;
+  g.clearRect(0, 0, w, h);
+  const hist = (activeZone ? activeZone.cache : globalCache).hist;
+  if (!N || !hist) return;
+  const lo = +$('#lo').value, hi = +$('#hi').value, inv = $('#inv').checked;
+  g.fillStyle = 'rgba(58,208,255,.16)';
+  if (!inv) g.fillRect(lo, 0, hi - lo + 1, h);
+  else { g.fillRect(0, 0, lo, h); g.fillRect(hi + 1, 0, w - hi - 1, h); }
+  let max = 0; for (let i = 0; i < 256; i++) max = Math.max(max, Math.sqrt(hist[i]));
+  if (max > 0) {
+    for (let i = 0; i < 256; i++) {
+      const on = (i >= lo && i <= hi) !== inv;
+      g.fillStyle = on ? '#3ad0ff' : '#5a5d6b';
+      const bh = Math.sqrt(hist[i]) / max * (h - 4);
+      g.fillRect(i, h - bh, 1, bh);
+    }
+  }
+  g.fillStyle = '#fff'; g.fillRect(lo, 0, 1, h); g.fillRect(hi, 0, 1, h);
+}
+
+/* ================= Affichage ================= */
+function updateDisplay(x0 = 0, y0 = 0, x1 = W, y1 = H) {
+  if (!N) return;
+  x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(W, x1); y1 = Math.min(H, y1);
+  if (x1 <= x0 || y1 <= y0) return;
+  const t = hex2rgb(view.tint), a = Math.round(view.opacity * 255);
+  const map = view.mode === 'map', se = view.showEdits;
+  const cF = map ? WHITE : pack(t.r, t.g, t.b, a);
+  const cN = map ? BLACK : pack(0, 0, 0, Math.round(a * 0.55));
+  const cEF = se ? (map ? pack(150, 225, 255, 255) : pack(120, 255, 140, a)) : cF;
+  const cEN = se ? (map ? pack(120, 20, 45, 255) : pack(255, 40, 90, Math.round(a * 0.8))) : cN;
+  for (let y = y0; y < y1; y++) {
+    let i = y * W + x0;
+    for (let x = x0; x < x1; x++, i++) {
+      const o = over[i];
+      dispBuf[i] = o ? (o === 2 ? cEF : cEN) : (autoMask[i] ? cF : cN);
+    }
+  }
+  dispCtx.putImageData(dispImg, 0, 0, x0, y0, x1 - x0, y1 - y0);
+  requestRender();
+}
+
+function updateStats() {
+  if (!N) return;
+  let c = 0, e = 0;
+  for (let i = 0; i < N; i++) { const o = over[i]; if (o) { e++; c += o - 1; } else c += autoMask[i]; }
+  $('#stCov').innerHTML = `Foil <b>${(c / N * 100).toFixed(1)} %</b> · Retouches <b>${(e / N * 100).toFixed(1)} %</b>`;
+}
+
+const cv = $('#view'), ctx = cv.getContext('2d');
+let dpr = 1, cw = 0, ch = 0;
+function resize() {
+  const r = $('#stage').getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1; cw = r.width; ch = r.height;
+  cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+  requestRender();
+}
+new ResizeObserver(resize).observe($('#stage'));
+
+function fit() {
+  if (!N) return;
+  const pad = 30, top = 56;
+  view.zoom = Math.min((cw - pad * 2) / W, (ch - top - pad - 30) / H);
+  view.panX = (cw - W * view.zoom) / 2;
+  view.panY = top + (ch - top - 30 - H * view.zoom) / 2;
+  updateZoomUI(); requestRender();
+}
+function updateZoomUI() { $('#stZoom').textContent = Math.round(view.zoom * 100) + ' %'; }
+
+let renderQueued = false;
+function requestRender() { if (!renderQueued) { renderQueued = true; requestAnimationFrame(render); } }
+function render() {
+  renderQueued = false;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  if (!N) return;
+  const z = view.zoom;
+  ctx.setTransform(dpr * z, 0, 0, dpr * z, dpr * view.panX, dpr * view.panY);
+  ctx.imageSmoothingEnabled = z < 1;
+  ctx.imageSmoothingQuality = 'high';
+  if (view.mode !== 'map') {
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(srcCanvas, 0, 0);
+  }
+  if (view.mode !== 'original') ctx.drawImage(dispCanvas, 0, 0);
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const x0 = view.panX, y0 = view.panY, w = W * z, h = H * z;
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,.22)';
+  ctx.strokeRect(x0 - .5, y0 - .5, w + 1, h + 1);
+  if (view.trim) {
+    const bx = w * 3 / 69, by = h * 3 / 94, rad = Math.min(w / 69, h / 94) * 3;
+    ctx.setLineDash([7, 5]);
+    ctx.strokeStyle = 'rgba(255,70,130,.95)';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x0 + bx, y0 + by, w - 2 * bx, h - 2 * by, rad);
+    else ctx.rect(x0 + bx, y0 + by, w - 2 * bx, h - 2 * by);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  const polyPath = pts => {
+    ctx.beginPath();
+    pts.forEach(([ix, iy], k) => {
+      const sx = view.panX + ix * z, sy = view.panY + iy * z;
+      k ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy);
+    });
+    ctx.closePath();
+  };
+  if (showZones || tool.name === 'zone') {
+    for (const zn of zones) {
+      const act = zn === activeZone;
+      polyPath(zn.pts);
+      ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.lineWidth = act ? 4 : 3; ctx.stroke();
+      ctx.strokeStyle = act ? '#ffd36c' : 'rgba(255,211,108,.55)'; ctx.lineWidth = act ? 2 : 1.2;
+      if (!act) ctx.setLineDash([6, 4]);
+      ctx.stroke(); ctx.setLineDash([]);
+      const lx = view.panX + zn.x0 * z, ly = view.panY + zn.y0 * z;
+      ctx.font = '600 11px system-ui,sans-serif';
+      const tw = ctx.measureText(zn.name).width;
+      ctx.fillStyle = act ? '#ffd36c' : 'rgba(28,29,35,.85)';
+      ctx.fillRect(lx, ly - 17, tw + 10, 16);
+      ctx.fillStyle = act ? '#2a1f00' : '#ffd36c';
+      ctx.fillText(zn.name, lx + 5, ly - 5);
+    }
+  }
+  if ((pointer.mode === 'lasso' || pointer.mode === 'zone') && pointer.lasso.length > 1) {
+    polyPath(pointer.lasso);
+    ctx.fillStyle = pointer.mode === 'zone' ? 'rgba(255,211,108,.18)' : pointer.val === 2 ? 'rgba(255,255,255,.25)' : pointer.val === 1 ? 'rgba(0,0,0,.35)' : 'rgba(128,128,128,.3)';
+    ctx.fill();
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (pointer.inside && tool.name === 'brush' && !spaceDown && pointer.mode !== 'pan') {
+    const r = Math.max(1.5, tool.size / 2 * z);
+    ctx.beginPath(); ctx.arc(pointer.x, pointer.y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = tool.paint === 2 ? '#fff' : tool.paint === 1 ? '#ff7aa0' : '#ffd36c';
+    ctx.lineWidth = 1.3; ctx.stroke();
+  }
+}
+
+/* ================= Retouches ================= */
+function pushUndo() {
+  undoStack.push(over.slice());
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+  redoStack = [];
+  updateUndoUI();
+}
+function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(over); over = undoStack.pop();
+  updateDisplay(); updateStats(); updateUndoUI();
+}
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(over); over = redoStack.pop();
+  updateDisplay(); updateStats(); updateUndoUI();
+}
+function updateUndoUI() { $('#btnUndo').disabled = !undoStack.length; $('#btnRedo').disabled = !redoStack.length; }
+
+let dirty = null;
+function stamp(cx, cy) {
+  const r = tool.size / 2, r2 = Math.max(r * r, 0.5);
+  const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(W - 1, Math.ceil(cx + r));
+  const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(H - 1, Math.ceil(cy + r));
+  if (x0 > x1 || y0 > y1) return;
+  const val = pointer.val;
+  for (let y = y0; y <= y1; y++) {
+    const dy = y + .5 - cy, dy2 = dy * dy, o = y * W;
+    for (let x = x0; x <= x1; x++) { const dx = x + .5 - cx; if (dx * dx + dy2 <= r2) over[o + x] = val; }
+  }
+  if (!dirty) dirty = [x0, y0, x1 + 1, y1 + 1];
+  else { dirty[0] = Math.min(dirty[0], x0); dirty[1] = Math.min(dirty[1], y0); dirty[2] = Math.max(dirty[2], x1 + 1); dirty[3] = Math.max(dirty[3], y1 + 1); }
+}
+function stampLine(ax, ay, bx, by) {
+  const d = Math.hypot(bx - ax, by - ay);
+  const step = Math.max(0.5, tool.size * 0.15);
+  const n = Math.max(1, Math.ceil(d / step));
+  for (let k = 0; k <= n; k++) stamp(ax + (bx - ax) * k / n, ay + (by - ay) * k / n);
+  if (dirty) { updateDisplay(...dirty); dirty = null; }
+}
+
+function applyLasso(pts, val) {
+  const r = rasterPoly(pts);
+  if (!r) return;
+  pushUndo();
+  const bw = r.x1 - r.x0;
+  for (let y = r.y0; y < r.y1; y++) for (let x = r.x0; x < r.x1; x++) if (r.mask[(y - r.y0) * bw + x - r.x0]) over[y * W + x] = val;
+  updateDisplay(r.x0, r.y0, r.x1, r.y1); updateStats();
+}
+
+function floodFill(x, y, val) {
+  if (x < 0 || y < 0 || x >= W || y >= H) return;
+  pushUndo();
+  const start = y * W + x, t = finalAt(start);
+  seen.fill(0);
+  let sp = 0; stack[sp++] = start; seen[start] = 1;
+  let minx = x, maxx = x, miny = y, maxy = y;
+  while (sp) {
+    const i = stack[--sp];
+    over[i] = val;
+    const px = i % W, py = (i - px) / W;
+    if (px < minx) minx = px; if (px > maxx) maxx = px; if (py < miny) miny = py; if (py > maxy) maxy = py;
+    if (px > 0 && !seen[i - 1] && finalAt(i - 1) === t) { seen[i - 1] = 1; stack[sp++] = i - 1; }
+    if (px < W - 1 && !seen[i + 1] && finalAt(i + 1) === t) { seen[i + 1] = 1; stack[sp++] = i + 1; }
+    if (py > 0 && !seen[i - W] && finalAt(i - W) === t) { seen[i - W] = 1; stack[sp++] = i - W; }
+    if (py < H - 1 && !seen[i + W] && finalAt(i + W) === t) { seen[i + W] = 1; stack[sp++] = i + W; }
+  }
+  updateDisplay(minx, miny, maxx + 1, maxy + 1); updateStats();
+}
+
+function pickColor(ix, iy) {
+  const cx = Math.floor(ix), cy = Math.floor(iy);
+  if (cx < 0 || cy < 0 || cx >= W || cy >= H) return;
+  let r = 0, g = 0, b = 0, n = 0;
+  const d = srcData.data;
+  for (let y = cy - 1; y <= cy + 1; y++) for (let x = cx - 1; x <= cx + 1; x++) {
+    if (x < 0 || y < 0 || x >= W || y >= H) continue;
+    const p = (y * W + x) * 4; r += d[p]; g += d[p + 1]; b += d[p + 2]; n++;
+  }
+  $('#color').value = rgb2hex(Math.round(r / n), Math.round(g / n), Math.round(b / n));
+  if ($('#mode').value !== 'color') { $('#mode').value = 'color'; applyModeDefaults(); }
+  setTool(tool.prev);
+  onParamsChanged();
+  toast('Couleur cible : ' + $('#color').value);
+}
+
+/* ================= Interaction canvas ================= */
+function toImg(e) {
+  const r = cv.getBoundingClientRect();
+  const sx = e.clientX - r.left, sy = e.clientY - r.top;
+  return [sx, sy, (sx - view.panX) / view.zoom, (sy - view.panY) / view.zoom];
+}
+const altPaint = v => v === 2 ? 1 : v === 1 ? 2 : 0;
+
+cv.addEventListener('pointerdown', e => {
+  if (!N) return;
+  if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+  cv.setPointerCapture(e.pointerId);
+  const [sx, sy, ix, iy] = toImg(e);
+  pointer.x = sx; pointer.y = sy;
+  if (e.button === 1 || spaceDown) {
+    e.preventDefault();
+    pointer.mode = 'pan'; pointer.sx = e.clientX; pointer.sy = e.clientY; pointer.px = view.panX; pointer.py = view.panY;
+    updateCursor(); return;
+  }
+  if (e.button !== 0 && e.button !== 2) return;
+  const val = e.button === 2 ? altPaint(tool.paint) : tool.paint;
+  pointer.val = val;
+  if (tool.name === 'brush') {
+    pushUndo(); pointer.mode = 'brush'; pointer.lx = ix; pointer.ly = iy;
+    stampLine(ix, iy, ix, iy);
+  } else if (tool.name === 'lasso' || tool.name === 'zone') {
+    pointer.mode = tool.name; pointer.lasso = [[ix, iy]];
+  } else if (tool.name === 'fill') {
+    floodFill(Math.floor(ix), Math.floor(iy), val);
+  } else if (tool.name === 'picker') {
+    pickColor(ix, iy);
+  }
+  requestRender();
+});
+cv.addEventListener('pointermove', e => {
+  const [sx, sy, ix, iy] = toImg(e);
+  pointer.x = sx; pointer.y = sy;
+  if (N) $('#stPos').textContent = (ix >= 0 && iy >= 0 && ix < W && iy < H) ? `${Math.floor(ix)}, ${Math.floor(iy)}` : '–';
+  if (pointer.mode === 'pan') {
+    view.panX = pointer.px + e.clientX - pointer.sx; view.panY = pointer.py + e.clientY - pointer.sy;
+  } else if (pointer.mode === 'brush') {
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of evs.length ? evs : [e]) {
+      const [, , jx, jy] = toImg(ev);
+      stampLine(pointer.lx, pointer.ly, jx, jy);
+      pointer.lx = jx; pointer.ly = jy;
+    }
+  } else if (pointer.mode === 'lasso' || pointer.mode === 'zone') {
+    const last = pointer.lasso[pointer.lasso.length - 1];
+    if (Math.hypot(ix - last[0], iy - last[1]) * view.zoom > 2) pointer.lasso.push([ix, iy]);
+  }
+  requestRender();
+});
+function endPointer() {
+  if (pointer.mode === 'brush') updateStats();
+  else if (pointer.mode === 'lasso' && pointer.lasso.length >= 3) applyLasso(pointer.lasso, pointer.val);
+  else if (pointer.mode === 'zone') {
+    if (pointer.lasso.length >= 3) createZone(pointer.lasso);
+    else { const [ix, iy] = pointer.lasso[0]; selectZone(zoneAt(ix, iy)); } // simple clic = sélection
+  }
+  pointer.mode = null; pointer.lasso = [];
+  updateCursor(); requestRender();
+}
+cv.addEventListener('pointerup', endPointer);
+cv.addEventListener('pointercancel', endPointer);
+cv.addEventListener('pointerenter', () => { pointer.inside = true; requestRender(); });
+cv.addEventListener('pointerleave', () => { pointer.inside = false; requestRender(); });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('wheel', e => {
+  if (!N) return;
+  e.preventDefault();
+  const [sx, sy] = toImg(e);
+  const f = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015));
+  const nz = Math.min(40, Math.max(0.02, view.zoom * f));
+  view.panX = sx - (sx - view.panX) * nz / view.zoom;
+  view.panY = sy - (sy - view.panY) * nz / view.zoom;
+  view.zoom = nz; updateZoomUI(); requestRender();
+}, { passive: false });
+
+function updateCursor() {
+  let c = 'default';
+  if (pointer.mode === 'pan') c = 'grabbing';
+  else if (spaceDown) c = 'grab';
+  else if (tool.name === 'brush') c = 'none';
+  else if (tool.name === 'picker') c = 'copy';
+  else c = 'crosshair';
+  cv.style.cursor = N ? c : 'default';
+}
+
+/* ================= UI ================= */
+function setTool(name) {
+  if (name === 'picker' && tool.name !== 'picker') tool.prev = tool.name;
+  tool.name = name;
+  $$('#tools button').forEach(b => b.classList.toggle('on', b.dataset.tool === name));
+  $('#btnPick').classList.toggle('primary', name === 'picker');
+  $('#sizeWrap').style.opacity = name === 'brush' ? 1 : .45;
+  updateCursor(); requestRender();
+}
+function setPaint(v) {
+  tool.paint = v;
+  $$('#paints button').forEach(b => b.classList.toggle('on', +b.dataset.paint === v));
+  requestRender();
+}
+function setSize(s) {
+  tool.size = Math.round(Math.min(400, Math.max(1, s)));
+  $('#size').value = tool.size; $('#sizeOut').textContent = tool.size + ' px';
+  requestRender();
+}
+function setView(m) {
+  view.mode = m;
+  $$('#views button').forEach(b => b.classList.toggle('on', b.dataset.view === m));
+  updateDisplay();
+  requestRender();
+}
+
+function refreshOutputs() {
+  $('#loOut').textContent = $('#lo').value;
+  $('#hiOut').textContent = $('#hi').value;
+  $('#blurOut').textContent = $('#blur').value;
+  $('#smoothOut').textContent = $('#smooth').value;
+  const g = +$('#grow').value; $('#growOut').textContent = (g > 0 ? '+' : '') + g;
+  $('#specksOut').textContent = $('#specks').value;
+  $('#holesOut').textContent = $('#holes').value;
+  $('#opacityOut').textContent = $('#opacity').value + '%';
+  $('#colorRow').classList.toggle('hidden', $('#mode').value !== 'color');
+  if (N) drawHistogram();
+}
+function applyModeDefaults() {
+  const [lo, hi] = MODE_RANGE[$('#mode').value];
+  $('#lo').value = lo; $('#hi').value = hi;
+}
+
+['blur', 'smooth', 'grow', 'specks', 'holes', 'inv', 'color'].forEach(id =>
+  $('#' + id).addEventListener('input', onParamsChanged));
+$('#lo').addEventListener('input', () => { if (+$('#lo').value > +$('#hi').value) $('#hi').value = $('#lo').value; onParamsChanged(); });
+$('#hi').addEventListener('input', () => { if (+$('#hi').value < +$('#lo').value) $('#lo').value = $('#hi').value; onParamsChanged(); });
+$('#mode').addEventListener('change', e => { applyModeDefaults(); onParamsChanged(); e.target.blur(); });
+$('#btnResetParams').addEventListener('click', () => { setParams(DEFAULTS); onParamsChanged(); });
+$('#zoneSel').addEventListener('change', e => { selectZone(zones.find(z => z.id === +e.target.value) || null); e.target.blur(); });
+$('#btnZoneNew').addEventListener('click', () => { if (!N) return; setTool('zone'); toast('Entoure la zone à régler séparément'); });
+$('#btnZoneDel').addEventListener('click', () => deleteZone(activeZone));
+$('#showZones').addEventListener('change', () => { showZones = $('#showZones').checked; requestRender(); });
+$('#btnPick').addEventListener('click', () => { if (!N) return; setTool(tool.name === 'picker' ? tool.prev : 'picker'); if (tool.name === 'picker') toast('Clique sur une couleur de l\'image'); });
+
+$('#opacity').addEventListener('input', () => { view.opacity = $('#opacity').value / 100; refreshOutputs(); updateDisplay(); });
+$('#tint').addEventListener('input', () => { view.tint = $('#tint').value; updateDisplay(); });
+$('#showEdits').addEventListener('change', () => { view.showEdits = $('#showEdits').checked; updateDisplay(); });
+$('#trim').addEventListener('change', () => { view.trim = $('#trim').checked; requestRender(); });
+$('#btnClearEdits').addEventListener('click', () => {
+  if (!N || !over.some(v => v)) return;
+  pushUndo(); over.fill(0); updateDisplay(); updateStats(); toast('Retouches effacées (Ctrl+Z pour annuler)');
+});
+
+$$('#tools button').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+$$('#paints button').forEach(b => b.addEventListener('click', () => setPaint(+b.dataset.paint)));
+$$('#views button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+$('#size').addEventListener('input', () => setSize(+$('#size').value));
+$('#btnUndo').addEventListener('click', undo);
+$('#btnRedo').addEventListener('click', redo);
+$('#btnFit').addEventListener('click', fit);
+
+$('#btnOpen').addEventListener('click', () => $('#fileImg').click());
+$('#btnOpen2').addEventListener('click', () => $('#fileImg').click());
+$('#btnImportMap').addEventListener('click', () => $('#fileMap').click());
+$('#fileImg').addEventListener('change', e => { loadFile(e.target.files[0], false); e.target.value = ''; });
+$('#fileMap').addEventListener('change', e => { loadFile(e.target.files[0], true); e.target.value = ''; });
+
+const stage = $('#stage');
+stage.addEventListener('dragover', e => { e.preventDefault(); stage.classList.add('dragging'); });
+stage.addEventListener('dragleave', e => { if (e.target === stage || !stage.contains(e.relatedTarget)) stage.classList.remove('dragging'); });
+stage.addEventListener('drop', e => {
+  e.preventDefault(); stage.classList.remove('dragging');
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f, false);
+});
+window.addEventListener('paste', e => {
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
+  if (item) loadFile(item.getAsFile(), false);
+});
+
+window.addEventListener('keydown', e => {
+  if (e.target.matches('input[type=number],input[type=text],textarea,select')) return;
+  const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
+  if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && k === 'y') { e.preventDefault(); redo(); return; }
+  if (mod && k === 's') { e.preventDefault(); exportPNG(); return; }
+  if (mod && k === 'o') { e.preventDefault(); $('#fileImg').click(); return; }
+  if (mod || e.altKey) return;
+  if (e.code === 'Space') { e.preventDefault(); if (!spaceDown) { spaceDown = true; updateCursor(); requestRender(); } return; }
+  switch (k) {
+    case 'b': setTool('brush'); break;
+    case 'l': setTool('lasso'); break;
+    case 'g': setTool('fill'); break;
+    case 'z': setTool('zone'); break;
+    case 'delete': if (activeZone) deleteZone(activeZone); break;
+    case 'i': if (N) setTool('picker'); break;
+    case 'x': setPaint(tool.paint === 2 ? 1 : 2); break;
+    case 'e': setPaint(0); break;
+    case '[': setSize(tool.size / 1.2); break;
+    case ']': setSize(tool.size * 1.2 + 1); break;
+    case '1': setView('map'); break;
+    case '2': setView('overlay'); break;
+    case '3': setView('original'); break;
+    case '0': fit(); break;
+    case 'r': $('#showEdits').checked = !$('#showEdits').checked; $('#showEdits').dispatchEvent(new Event('change')); break;
+    case 't': $('#trim').checked = !$('#trim').checked; $('#trim').dispatchEvent(new Event('change')); break;
+    case 'escape': if (pointer.mode === 'lasso' || pointer.mode === 'zone') { pointer.mode = null; pointer.lasso = []; requestRender(); } break;
+  }
+});
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space') { e.preventDefault(); spaceDown = false; updateCursor(); requestRender(); }
+});
+window.addEventListener('blur', () => { spaceDown = false; updateCursor(); });
+
+/* ================= Export ================= */
+function exportSize() {
+  const v = $('#exRes').value;
+  if (v === 'tcg') return [TCG_W, TCG_H];
+  if (v === 'custom') return [Math.max(1, +$('#exW').value | 0), Math.max(1, +$('#exH').value | 0)];
+  return [W, H];
+}
+function updateExportUI() {
+  $('#customRow').classList.toggle('hidden', $('#exRes').value !== 'custom');
+  $('#exRes').options[0].textContent = N ? `Taille de l'image (${W} × ${H})` : 'Taille de l\'image';
+  if (!N) return;
+  const [ow, oh] = exportSize();
+  const msgs = [];
+  const r = W / H, rt = TCG_W / TCG_H, ro = ow / oh;
+  if (Math.abs(r / rt - 1) > 0.01) msgs.push(`⚠ Le ratio de l'image (${r.toFixed(3)}) diffère de celui d'une carte TCG Printery (${rt.toFixed(3)}).`);
+  const differs = Math.abs(ro / r - 1) > 0.002;
+  $('#fitRow').classList.toggle('hidden', !differs);
+  if (differs && $('#exFit').value === 'stretch') msgs.push('⚠ L\'export étirera la map : utilise la même transformation pour l\'illustration (case ci-dessous).');
+  $('#exWarn').innerHTML = msgs.join('<br>');
+}
+['exRes', 'exFit', 'exW', 'exH'].forEach(id => $('#' + id).addEventListener('input', updateExportUI));
+$('#exRes').addEventListener('change', e => e.target.blur());
+
+function maskCanvas() {
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const id = g.createImageData(W, H), b = new Uint32Array(id.data.buffer);
+  for (let i = 0; i < N; i++) b[i] = finalAt(i) ? WHITE : BLACK;
+  g.putImageData(id, 0, 0);
+  return c;
+}
+function resizeTo(src, ow, oh, fitMode, binarize) {
+  const c = document.createElement('canvas'); c.width = ow; c.height = oh;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.fillStyle = '#000'; g.fillRect(0, 0, ow, oh);
+  let dx = 0, dy = 0, dw = ow, dh = oh;
+  if (fitMode !== 'stretch') {
+    const s = fitMode === 'cover' ? Math.max(ow / W, oh / H) : Math.min(ow / W, oh / H);
+    dw = W * s; dh = H * s; dx = (ow - dw) / 2; dy = (oh - dh) / 2;
+  }
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  g.drawImage(src, dx, dy, dw, dh);
+  if (binarize) {
+    const id = g.getImageData(0, 0, ow, oh), d = id.data;
+    for (let p = 0; p < d.length; p += 4) { const v = d[p] >= 128 ? 255 : 0; d[p] = d[p + 1] = d[p + 2] = v; d[p + 3] = 255; }
+    g.putImageData(id, 0, 0);
+  }
+  return c;
+}
+function download(canvas, name) {
+  return new Promise(res => canvas.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    res();
+  }, 'image/png'));
+}
+async function exportPNG() {
+  if (!N) return;
+  const [ow, oh] = exportSize();
+  const fitMode = $('#exFit').value;
+  const same = ow === W && oh === H;
+  const m = maskCanvas();
+  const out = same ? m : resizeTo(m, ow, oh, fitMode, true);
+  await download(out, `${baseName}_foil_${ow}x${oh}.png`);
+  if ($('#exArt').checked) {
+    const art = same ? srcCanvas : resizeTo(srcCanvas, ow, oh, fitMode, false);
+    await download(art, `${baseName}_art_${ow}x${oh}.png`);
+  }
+  toast(`Map exportée en ${ow} × ${oh} px`);
+}
+$('#btnExport').addEventListener('click', exportPNG);
+
+/* ================= Init ================= */
+setTool('brush'); setPaint(2); setSize(40); setView('map');
+refreshOutputs(); updateUndoUI(); updateExportUI();
+</script>
+</body>
+</html>

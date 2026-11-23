@@ -703,7 +703,7 @@ function render() {
     });
     ctx.closePath();
   };
-  if (showZones || tool.name === 'zone') {
+  if (showZones) {
     for (const zn of zones) {
       const act = zn === activeZone;
       polyPath(zn.pts);

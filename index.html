@@ -115,12 +115,11 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
     <h2>Génération automatique</h2>
     <div class="row"><span class="lbl">Réglages de</span>
       <select id="zoneSel"><option value="">Image entière</option></select>
-      <button id="btnZoneInv" title="Inverser la zone : elle couvre tout sauf ce qu'elle couvrait" disabled>Inverser</button>
-      <button id="btnZoneDel" class="danger" title="Supprimer la zone (Suppr)" disabled>✕</button>
     </div>
-    <div class="row" style="justify-content:space-between">
+    <div class="row">
       <button id="btnZoneNew" title="Lasso en mode Zone (Z)">+ Nouvelle zone</button>
-      <label class="check" style="margin:0"><input type="checkbox" id="showZones" checked> Contours</label>
+      <button id="btnZoneInv" title="Inverser la zone : elle couvre tout sauf ce qu'elle couvrait" disabled>Inverser</button>
+      <button id="btnZoneDel" class="danger" title="Supprimer la zone (Suppr)" disabled>Supprimer</button>
     </div>
     <p id="zoneHint" class="hint"></p>
     <div class="row"><span class="lbl">Source</span>
@@ -164,6 +163,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
     <h2>Affichage</h2>
     <div class="row"><span class="lbl">Intensité superp.</span><input type="range" id="opacity" min="0" max="100" value="60"><input type="number" class="num" data-num="opacity"></div>
     <div class="row"><span class="lbl">Teinte du foil</span><input type="color" id="tint" value="#3ad0ff"></div>
+    <label class="check"><input type="checkbox" id="showZones" checked> Contours des zones</label>
     <label class="check"><input type="checkbox" id="trim" checked> Trait de coupe (fond perdu 3 mm) <kbd>T</kbd></label>
   </section>
 

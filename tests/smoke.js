@@ -12,6 +12,13 @@
     const empty = nums.filter(n => n.value === '' || n.value !== document.getElementById(n.dataset.num).value);
     check('champs numériques remplis au chargement', nums.length >= 10 && !empty.length,
       `${nums.length} champs, vides ou désynchronisés : ${empty.map(n => n.dataset.num).join(', ')}`);
+    // Mise en page : aucun champ ni liste écrasé (largeur utile minimale)
+    const narrow = [...document.querySelectorAll('aside select, aside input.num, #optbar input.num')]
+      .filter(el => el.offsetParent && el.getBoundingClientRect().width < (el.tagName === 'SELECT' ? 120 : 50));
+    check('champs et listes assez larges', !narrow.length,
+      narrow.map(el => `${el.id || el.dataset.num}=${Math.round(el.getBoundingClientRect().width)}px`).join(', '));
+    const numStyle = getComputedStyle(nums[0]);
+    check('texte des champs numériques visible', numStyle.color !== numStyle.backgroundColor && parseFloat(numStyle.fontSize) >= 10);
     check('nom de l\'outil affiché', $('#toolName').textContent === 'Pinceau', $('#toolName').textContent);
 
     // ---------- Chargement d'une image (dégradé horizontal noir → blanc) ----------

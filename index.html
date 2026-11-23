@@ -61,8 +61,9 @@ canvas#hist{width:100%;height:56px;display:block;background:var(--panel2);border
 .chip-black{background:#000}
 .chip-auto{background:repeating-linear-gradient(45deg,#777 0 3px,#333 3px 6px)}
 #sizeWrap{display:flex;align-items:center;gap:6px;padding:0 4px;color:var(--muted)}
-#sizeWrap input{width:110px}
-#sizeOut{width:42px;color:var(--text);font-variant-numeric:tabular-nums}
+#sizeWrap input,#wandWrap input[type=range]{width:110px}
+#sizeOut,#tolOut{width:42px;color:var(--text);font-variant-numeric:tabular-nums}
+#wandWrap{display:flex;align-items:center;gap:6px;padding:0 4px;color:var(--muted)}
 #status{position:absolute;left:10px;bottom:8px;display:flex;gap:14px;color:var(--muted);font-size:12px;
   background:rgba(28,29,35,.85);border:1px solid var(--line);border-radius:7px;padding:4px 10px;font-variant-numeric:tabular-nums;z-index:2}
 #status b{color:var(--text);font-weight:600}
@@ -177,6 +178,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
     <h2>Raccourcis</h2>
     <div class="keys">
       <kbd>B</kbd> pinceau · <kbd>L</kbd> lasso · <kbd>G</kbd> remplissage · <kbd>I</kbd> pipette<br>
+      <kbd>W</kbd> baguette magique (<kbd>[</kbd> <kbd>]</kbd> = tolérance)<br>
       <kbd>Z</kbd> zone (entourer = créer, clic = sélectionner) · <kbd>Suppr</kbd> supprimer la zone<br>
       <kbd>X</kbd> blanc ↔ noir · <kbd>E</kbd> auto (gomme) · <kbd>[</kbd> <kbd>]</kbd> taille<br>
       <kbd>1</kbd> map · <kbd>2</kbd> superposition · <kbd>3</kbd> original · <kbd>0</kbd> ajuster<br>
@@ -193,6 +195,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
       <button data-tool="brush" title="Pinceau (B)">Pinceau</button>
       <button data-tool="lasso" title="Lasso : entoure une zone pour la remplir (L)">Lasso</button>
       <button data-tool="fill" title="Remplissage d'une zone connexe (G)">Remplir</button>
+      <button data-tool="wand" title="Baguette magique : peint les pixels de l'illustration de couleur proche de celle cliquée (W)">Baguette</button>
       <button data-tool="zone" title="Zone : entoure une partie de l'image pour lui donner ses propres seuils ; clic simple = sélectionner une zone (Z)">Zone</button>
     </div>
     <span class="sep"></span>
@@ -202,6 +205,8 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
       <button data-paint="0" title="Auto = gomme, revient au calcul automatique (E)"><span class="chip chip-auto"></span>Auto</button>
     </div>
     <span id="sizeWrap" title="Taille du pinceau ([ et ])">⌀ <input type="range" id="size" min="1" max="400" value="40"><span id="sizeOut"></span></span>
+    <span id="wandWrap" class="hidden" title="Tolérance de la baguette ([ et ])">Tolérance <input type="range" id="tol" min="0" max="160" value="32"><span id="tolOut"></span>
+      <label class="check" style="margin:0 0 0 6px" title="Seulement les pixels reliés au point cliqué"><input type="checkbox" id="wandContig" checked> Contiguë</label></span>
     <span class="sep"></span>
     <button id="btnUndo" title="Annuler (Ctrl+Z)">↶</button>
     <button id="btnRedo" title="Rétablir (Ctrl+Y)">↷</button>
@@ -248,7 +253,7 @@ let undoStack = [], redoStack = [];
 const UNDO_MAX = 40;
 
 const view = { mode: 'map', zoom: 1, panX: 0, panY: 0, opacity: 0.6, tint: '#3ad0ff', showEdits: false, trim: true };
-const tool = { name: 'brush', paint: 2, size: 40, prev: 'brush' };
+const tool = { name: 'brush', paint: 2, size: 40, prev: 'brush', tol: 32 };
 const pointer = { x: 0, y: 0, inside: false, mode: null, val: 2, lx: 0, ly: 0, lasso: [], sx: 0, sy: 0, px: 0, py: 0 };
 let spaceDown = false;
 
@@ -809,6 +814,47 @@ function floodFill(x, y, val) {
   updateDisplay(minx, miny, maxx + 1, maxy + 1); updateStats();
 }
 
+// Baguette magique : pixels de l'illustration proches de la couleur cliquée (distance pondérée, alpha compris)
+function magicWand(x, y, val) {
+  if (x < 0 || y < 0 || x >= W || y >= H) return;
+  pushUndo();
+  const d = srcData.data, p0 = (y * W + x) * 4;
+  const r0 = d[p0], g0 = d[p0 + 1], b0 = d[p0 + 2], a0 = d[p0 + 3];
+  const t2 = tool.tol * tool.tol * 9;
+  const match = i => {
+    const p = i * 4, dr = d[p] - r0, dg = d[p + 1] - g0, db = d[p + 2] - b0, da = d[p + 3] - a0;
+    return 2 * dr * dr + 4 * dg * dg + 3 * db * db + 9 * da * da <= t2;
+  };
+  let minx = W, maxx = -1, miny = H, maxy = -1, cnt = 0;
+  if ($('#wandContig').checked) {
+    seen.fill(0);
+    const start = y * W + x;
+    let sp = 0; stack[sp++] = start; seen[start] = 1;
+    while (sp) {
+      const i = stack[--sp];
+      over[i] = val; cnt++;
+      const px = i % W, py = (i - px) / W;
+      if (px < minx) minx = px; if (px > maxx) maxx = px; if (py < miny) miny = py; if (py > maxy) maxy = py;
+      if (px > 0 && !seen[i - 1] && match(i - 1)) { seen[i - 1] = 1; stack[sp++] = i - 1; }
+      if (px < W - 1 && !seen[i + 1] && match(i + 1)) { seen[i + 1] = 1; stack[sp++] = i + 1; }
+      if (py > 0 && !seen[i - W] && match(i - W)) { seen[i - W] = 1; stack[sp++] = i - W; }
+      if (py < H - 1 && !seen[i + W] && match(i + W)) { seen[i + W] = 1; stack[sp++] = i + W; }
+    }
+  } else {
+    for (let i = 0; i < N; i++) if (match(i)) {
+      over[i] = val; cnt++;
+      const px = i % W, py = (i - px) / W;
+      if (px < minx) minx = px; if (px > maxx) maxx = px; if (py < miny) miny = py; if (py > maxy) maxy = py;
+    }
+  }
+  updateDisplay(minx, miny, maxx + 1, maxy + 1); updateStats();
+  toast(`${cnt.toLocaleString('fr-FR')} px ${val === 2 ? 'passés en blanc' : val === 1 ? 'passés en noir' : 'remis en auto'}`, 1600);
+}
+function setTol(t) {
+  tool.tol = Math.round(Math.min(160, Math.max(0, t)));
+  $('#tol').value = tool.tol; $('#tolOut').textContent = tool.tol;
+}
+
 function pickColor(ix, iy) {
   const cx = Math.floor(ix), cy = Math.floor(iy);
   if (cx < 0 || cy < 0 || cx >= W || cy >= H) return;
@@ -854,6 +900,8 @@ cv.addEventListener('pointerdown', e => {
     pointer.mode = tool.name; pointer.lasso = [[ix, iy]];
   } else if (tool.name === 'fill') {
     floodFill(Math.floor(ix), Math.floor(iy), val);
+  } else if (tool.name === 'wand') {
+    magicWand(Math.floor(ix), Math.floor(iy), val);
   } else if (tool.name === 'picker') {
     pickColor(ix, iy);
   }
@@ -920,7 +968,9 @@ function setTool(name) {
   tool.name = name;
   $$('#tools button').forEach(b => b.classList.toggle('on', b.dataset.tool === name));
   $('#btnPick').classList.toggle('primary', name === 'picker');
+  $('#sizeWrap').classList.toggle('hidden', name === 'wand');
   $('#sizeWrap').style.opacity = name === 'brush' ? 1 : .45;
+  $('#wandWrap').classList.toggle('hidden', name !== 'wand');
   updateCursor(); requestRender();
 }
 function setPaint(v) {
@@ -982,6 +1032,7 @@ $$('#tools button').forEach(b => b.addEventListener('click', () => setTool(b.dat
 $$('#paints button').forEach(b => b.addEventListener('click', () => setPaint(+b.dataset.paint)));
 $$('#views button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
 $('#size').addEventListener('input', () => setSize(+$('#size').value));
+$('#tol').addEventListener('input', () => setTol(+$('#tol').value));
 $('#btnUndo').addEventListener('click', undo);
 $('#btnRedo').addEventListener('click', redo);
 $('#btnFit').addEventListener('click', fit);
@@ -1023,8 +1074,9 @@ window.addEventListener('keydown', e => {
     case 'i': if (N) setTool('picker'); break;
     case 'x': setPaint(tool.paint === 2 ? 1 : 2); break;
     case 'e': setPaint(0); break;
-    case '[': setSize(tool.size / 1.2); break;
-    case ']': setSize(tool.size * 1.2 + 1); break;
+    case 'w': setTool('wand'); break;
+    case '[': tool.name === 'wand' ? setTol(tool.tol - 4) : setSize(tool.size / 1.2); break;
+    case ']': tool.name === 'wand' ? setTol(tool.tol + 4) : setSize(tool.size * 1.2 + 1); break;
     case '1': setView('map'); break;
     case '2': setView('overlay'); break;
     case '3': setView('original'); break;
@@ -1114,7 +1166,7 @@ async function exportPNG() {
 $('#btnExport').addEventListener('click', exportPNG);
 
 /* ================= Init ================= */
-setTool('brush'); setPaint(2); setSize(40); setView('map');
+setTool('brush'); setPaint(2); setSize(40); setTol(32); setView('map');
 refreshOutputs(); updateUndoUI(); updateExportUI();
 </script>
 </body>

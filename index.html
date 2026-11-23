@@ -621,8 +621,10 @@ function zoneFromMask(r, mod) {
   if (!r) return;
   if (mod && activeZone) { combineZone(activeZone, r, mod); return; }
   if (mod === 'sub') { toast('Sélectionne d\'abord une zone pour lui retirer des pixels'); return; }
-  const id = ++zoneSeq;
-  const z = { id, name: 'Zone ' + id, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, mask: r.mask,
+  const id = ++zoneSeq;               // identifiant interne unique
+  let num = 1;                        // numéro affiché : le plus petit libre
+  while (zones.some(o => o.num === num)) num++;
+  const z = { id, num, name: 'Zone ' + num, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, mask: r.mask,
     params: { ...getParams() }, cache: {}, dirty: true, result: null, crop: null, path: null, tint: null };
   zones.push(z);
   selectZone(z);
